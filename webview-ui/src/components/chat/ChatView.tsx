@@ -255,6 +255,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		}),
 	)
 	const [currentFollowUpTs, setCurrentFollowUpTs] = useState<number | null>(-1)
+	//costrict: track multiple_choice independently so followup timestamps do not affect questionnaire answered state
+	const [currentMultipleChoiceTs, setCurrentMultipleChoiceTs] = useState<number | null>(-1)
 	const [aggregatedCostsMap, setAggregatedCostsMap] = useState<
 		Map<
 			string,
@@ -608,6 +610,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		setExpandedRows({})
 		everVisibleMessagesTsRef.current.clear()
 		setCurrentFollowUpTs(null)
+		//costrict: reset the per-questionnaire answered watermark when switching tasks
+		setCurrentMultipleChoiceTs(null)
 		setIsCondensing(false)
 	}, [task?.ts])
 
@@ -637,11 +641,20 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	}, [])
 
 	const markFollowUpAsAnswered = useCallback(() => {
-		const lastFollowUpMessage = messagesRef.current.findLast((msg: ClineMessage) =>
-			["followup", "multiple_choice"].includes(msg.ask!),
-		)
+		//costrict: only advance the followup watermark from followup asks
+		const lastFollowUpMessage = messagesRef.current.findLast((msg: ClineMessage) => msg.ask === "followup")
 		if (lastFollowUpMessage) {
 			setCurrentFollowUpTs(lastFollowUpMessage.ts)
+		}
+	}, [])
+
+	const markMultipleChoiceAsAnswered = useCallback(() => {
+		//costrict: keep multiple_choice answered state isolated from followup asks
+		const lastMultipleChoiceMessage = messagesRef.current.findLast(
+			(msg: ClineMessage) => msg.ask === "multiple_choice",
+		)
+		if (lastMultipleChoiceMessage) {
+			setCurrentMultipleChoiceTs(lastMultipleChoiceMessage.ts)
 		}
 	}, [])
 
@@ -1091,6 +1104,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		// Remove the 500-message limit to prevent array index shifting
 		// Virtuoso is designed to efficiently handle large lists through virtualization
 		const newVisibleMessages = modifiedMessages.filter((message) => {
+			//costrict: hide stale multiple_choice loading placeholders once a later message supersedes them
+			if (
+				message.ask === "multiple_choice" &&
+				message.partial === true &&
+				modifiedMessages.at(-1)?.ts !== message.ts
+			) {
+				return false
+			}
+
 			// Filter out checkpoint_saved messages that should be suppressed
 			if (message.say === "checkpoint_saved") {
 				// Check if this checkpoint has the suppressMessage flag set
@@ -1508,11 +1530,14 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const handleMultipleChoiceSubmit = useCallback(
 		(response: MultipleChoiceResponse) => {
+			//costrict: optimistically mark the current questionnaire as answered in UI before backend persistence lands
+			markMultipleChoiceAsAnswered()
 			// 后端会在 handleWebviewAskResponse 中自动设置 isAnswered 和 userResponse
 			// 不需要前端处理，避免重复和耦合
+			//costrict: submit structured multiple choice answers through a dedicated response channel
 			vscode.postMessage({
 				type: "askResponse",
-				askResponse: "messageResponse",
+				askResponse: "multipleChoiceResponse",
 				text: JSON.stringify(response),
 			})
 
@@ -1520,7 +1545,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			setClineAsk(undefined)
 			setEnableButtons(false)
 		},
-		[], // 移除不必要的依赖
+		[markMultipleChoiceAsAnswered],
 	)
 
 	const handleSuggestionClickInRow = useCallback(
@@ -1581,6 +1606,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const handleFollowUpUnmount = useCallback(() => {
 		vscode.postMessage({ type: "cancelAutoApproval" })
 	}, [])
+	//costrict: reuse the existing backend timeout cancellation path for multiple_choice countdown cleanup and manual interaction
+	const handleMultipleChoiceUnmount = useCallback(() => {
+		vscode.postMessage({ type: "cancelAutoApproval" })
+	}, [])
 
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage) => {
@@ -1601,13 +1630,15 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					onMultipleChoiceSubmit={handleMultipleChoiceSubmit}
 					onBatchFileResponse={handleBatchFileResponse}
 					onFollowUpUnmount={handleFollowUpUnmount}
+					onMultipleChoiceUnmount={handleMultipleChoiceUnmount}
 					isFollowUpAutoApprovalPaused={isFollowUpAutoApprovalPaused}
 					isFollowUpAnswered={
 						messageOrGroup.isAnswered === true || messageOrGroup.ts <= Number(currentFollowUpTs)
 					}
 					// Costrict: ask_multiple_choice answered
 					isMultipleChoiceAnswered={
-						messageOrGroup.isAnswered === true || messageOrGroup.ts <= Number(currentFollowUpTs)
+						//costrict: compare against the dedicated multiple_choice watermark instead of the followup one
+						messageOrGroup.isAnswered === true || messageOrGroup.ts <= Number(currentMultipleChoiceTs)
 					}
 					editable={
 						messageOrGroup.type === "ask" &&
@@ -1642,8 +1673,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 			handleMultipleChoiceSubmit,
 			handleBatchFileResponse,
 			handleFollowUpUnmount,
+			handleMultipleChoiceUnmount,
 			isFollowUpAutoApprovalPaused,
 			currentFollowUpTs,
+			currentMultipleChoiceTs,
 			shouldHighlight,
 			searchResults,
 			showSearch,
