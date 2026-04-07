@@ -23,7 +23,10 @@ function findPidByPort(port: number): number | null {
 				encoding: "utf-8",
 				stdio: ["pipe", "pipe", "ignore"],
 			})
-			const line = result.trim().split("\n").find((l) => l.trim())
+			const line = result
+				.trim()
+				.split("\n")
+				.find((l) => l.trim())
 			if (line) {
 				const parts = line.trim().split(/\s+/)
 				const pid = parseInt(parts[parts.length - 1], 10)

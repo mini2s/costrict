@@ -49,7 +49,9 @@ export function getLiteMustFollowRules(_shell?: string, _settings?: SystemPrompt
 	const rules: string[] = ["# MUST_FOLLOW_RULES (LITE MODE):"]
 
 	// Shell rule - reference SYSTEM INFORMATION instead of inline path
-	rules.push(`- Before generating or executing a command, check the Current Shell in SYSTEM INFORMATION and use compatible syntax with UTF-8 encoding`)
+	rules.push(
+		`- Before generating or executing a command, check the Current Shell in SYSTEM INFORMATION and use compatible syntax with UTF-8 encoding`,
+	)
 	rules.push(
 		`- Avoid shell-incompatible syntax or utilities; on PowerShell or cmd.exe, do not assume bash/Unix tools are available unless confirmed`,
 	)
