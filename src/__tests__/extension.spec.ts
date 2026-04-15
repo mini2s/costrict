@@ -17,6 +17,7 @@ vi.mock("vscode", async (importOriginal) => ({
 			hide: vi.fn(),
 			dispose: vi.fn(),
 		}),
+		showInformationMessage: vi.fn().mockResolvedValue(undefined),
 		registerWebviewViewProvider: vi.fn(),
 		registerUriHandler: vi.fn(),
 		tabGroups: {
@@ -142,16 +143,39 @@ vi.mock("../utils/outputChannelLogger", () => ({
 	createDualLogger: vi.fn().mockReturnValue(vi.fn()),
 }))
 
+vi.mock("../core/costrict/workflow", () => ({
+	activateCoworkflowIntegration: vi.fn(),
+	deactivateCoworkflowIntegration: vi.fn(),
+}))
+
+vi.mock("../core/costrict", () => ({
+	activate: vi.fn(),
+	deactivate: vi.fn(),
+}))
+
 vi.mock("../shared/package", () => ({
 	Package: {
 		name: "test-extension",
 		outputChannel: "Test Output",
 		version: "1.0.0",
+		commandIDPrefix: "costrict",
 	},
 }))
 
 vi.mock("../shared/language", () => ({
 	formatLanguage: vi.fn().mockReturnValue("en"),
+}))
+
+vi.mock("../i18n", () => ({
+	initializeI18n: vi.fn(),
+	t: vi.fn((key: string) => {
+		const translations: Record<string, string> = {
+			"acp:messages.switchedToAcpMode": "Switched to ACP mode. Please reload the window to apply changes.",
+			"acp:messages.switchedToCostrictMode": "Switched to CoStrict mode. Please reload the window to apply changes.",
+			"acp:commands.reloadWindow": "Reload Window",
+		}
+		return translations[key] ?? key
+	}),
 }))
 
 vi.mock("../core/config/ContextProxy", () => ({
@@ -327,6 +351,80 @@ describe("extension.ts", () => {
 		// Verify dotenvx.config was called exactly once
 		expect(dotenvxConfigMock).toHaveBeenCalledTimes(1)
 	}, 60000)
+
+	describe("ACP command registration", () => {
+		test("registers ACP commands during activation and mode switch updates config", async () => {
+			vi.resetModules()
+			const vscode = await import("vscode")
+			const { Package } = await import("../shared/package")
+			const registerCommandMock = vi.mocked(vscode.commands.registerCommand)
+			const executeCommandMock = vi.mocked(vscode.commands.executeCommand)
+			const showInformationMessageMock = vi.mocked(vscode.window.showInformationMessage)
+			const configUpdateMock = vi.fn().mockResolvedValue(undefined)
+			const connectToAgentMock = vi.fn().mockResolvedValue(undefined)
+			const disconnectAgentMock = vi.fn().mockResolvedValue(undefined)
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn(),
+				update: configUpdateMock,
+			} as any)
+			showInformationMessageMock.mockResolvedValueOnce("Reload Window" as any)
+			vi.doMock("../acp/AcpProvider", () => ({
+				AcpProvider: class MockAcpProvider {
+					static readonly viewId = "costrict.AcpProvider"
+					constructor(_context: unknown, _outputChannel: unknown) {}
+					connectToAgent = connectToAgentMock
+					disconnectAgent = disconnectAgentMock
+					postMessageToWebview = vi.fn()
+					dispose = vi.fn()
+				},
+			}))
+
+			const { activate } = await import("../extension")
+			await activate({
+				...mockContext,
+				subscriptions: [],
+			} as any)
+
+			const commandPrefix = Package.commandIDPrefix
+			const registeredCommands = registerCommandMock.mock.calls.map(([command]) => command)
+			expect(registeredCommands).toContain(`${commandPrefix}.switchToAcpMode`)
+			expect(registeredCommands).toContain(`${commandPrefix}.switchToCostrictMode`)
+			expect(registeredCommands).toContain(`${commandPrefix}.acp.connectAgent`)
+			expect(registeredCommands).toContain(`${commandPrefix}.acp.disconnectAgent`)
+
+			const switchToAcpHandler = registerCommandMock.mock.calls.find(
+				([command]) => command === `${commandPrefix}.switchToAcpMode`,
+			)?.[1] as (() => Promise<void>) | undefined
+			expect(switchToAcpHandler).toBeDefined()
+
+			await switchToAcpHandler?.()
+
+			expect(configUpdateMock).toHaveBeenCalledWith("panelMode", "acp", vscode.ConfigurationTarget.Global)
+			expect(showInformationMessageMock).toHaveBeenCalledWith(
+				"acp:messages.switchedToAcpMode",
+				"acp:commands.reloadWindow",
+			)
+
+			const connectAgentHandler = registerCommandMock.mock.calls.find(
+				([command]) => command === `${commandPrefix}.acp.connectAgent`,
+			)?.[1] as (() => Promise<void>) | undefined
+			expect(connectAgentHandler).toBeDefined()
+
+			await connectAgentHandler?.()
+
+			expect(executeCommandMock).toHaveBeenCalledWith("workbench.view.extension.costrict-ActivityBar")
+			expect(executeCommandMock).toHaveBeenCalledWith(`${commandPrefix}.AcpProvider.focus`)
+			expect(connectToAgentMock).toHaveBeenCalledTimes(1)
+
+			const disconnectAgentHandler = registerCommandMock.mock.calls.find(
+				([command]) => command === `${commandPrefix}.acp.disconnectAgent`,
+			)?.[1] as (() => Promise<void>) | undefined
+			expect(disconnectAgentHandler).toBeDefined()
+
+			await disconnectAgentHandler?.()
+			expect(disconnectAgentMock).toHaveBeenCalledTimes(1)
+		})
+	})
 
 	//	describe("Roo model cache refresh on auth state change (ROO-202)", () => {
 	//		beforeEach(() => {

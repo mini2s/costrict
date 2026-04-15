@@ -1,0 +1,9 @@
+{
+	"messages": {
+		"switchedToAcpMode": "已切換到 ACP 模式。請重新載入視窗以套用變更。",
+		"switchedToCostrictMode": "已切換到 CoStrict 模式。請重新載入視窗以套用變更。"
+	},
+	"commands": {
+		"reloadWindow": "重新載入視窗"
+	}
+}

@@ -783,6 +783,9 @@ importers:
 
   src:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.14.1
+        version: 0.14.1(zod@3.25.76)
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.51
         version: 4.0.92(zod@3.25.76)
@@ -1519,6 +1522,11 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@agentclientprotocol/sdk@0.14.1':
+    resolution: {integrity: sha512-b6r3PS3Nly+Wyw9U+0nOr47bV8tfS476EgyEMhoKvJCZLbgqoDFN7DJwkxL88RR0aiOqOYV1ZnESHqb+RmdH8w==}
+    peerDependencies:
+      zod: 3.25.76
 
   '@ai-sdk/amazon-bedrock@4.0.92':
     resolution: {integrity: sha512-v3Itukx0HHWorcWb9Xh2E7kQKrYSf7uln7EtXwfBsywZtpkWepxbd+3RtK2FsY588Q831fohq7QO5vY7UvNckA==}
@@ -10644,6 +10652,10 @@ snapshots:
 
   '@adobe/css-tools@4.4.4': {}
 
+  '@agentclientprotocol/sdk@0.14.1(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
+
   '@ai-sdk/amazon-bedrock@4.0.92(zod@3.25.76)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.68(zod@3.25.76)
@@ -14260,7 +14272,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.16
       tinyrainbow: 2.0.0
-      vitest: 3.2.4(@types/debug@4.1.13)(@types/node@24.12.2)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.3)
+      vitest: 3.2.4(@types/debug@4.1.13)(@types/node@20.19.39)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/utils@3.2.4':
     dependencies:

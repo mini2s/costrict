@@ -123,6 +123,7 @@ export default defineConfig(({ mode }) => {
 				external: ["vscode"],
 				input: {
 					index: resolve(__dirname, "index.html"),
+					acp: resolve(__dirname, "acp.html"),
 				},
 				output: {
 					entryFileNames: `assets/[name].js`,

@@ -88,7 +88,15 @@
 					"type": "webview",
 					"id": "costrict.SidebarProvider",
 					"name": "%views.sidebar.name%",
-					"icon": "assets/images/shenma_robot_logo_big.png"
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "config.costrict.panelMode == costrict"
+				},
+				{
+					"type": "webview",
+					"id": "costrict.AcpProvider",
+					"name": "%views.acp.sidebar.name%",
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "config.costrict.panelMode == acp"
 				}
 			]
 		},
@@ -338,6 +346,26 @@
 				"command": "costrict.coworkflow.runTest",
 				"title": "Generate Test Case",
 				"category": "Coworkflow"
+			},
+			{
+				"command": "costrict.switchToAcpMode",
+				"title": "%command.switchToAcpMode.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "costrict.switchToCostrictMode",
+				"title": "%command.switchToCostrictMode.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "costrict.acp.connectAgent",
+				"title": "%command.acp.connectAgent.title%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "costrict.acp.disconnectAgent",
+				"title": "%command.acp.disconnectAgent.title%",
+				"category": "%configuration.title%"
 			}
 		],
 		"menus": {
@@ -451,6 +479,36 @@
 					"command": "costrict.popoutButtonClicked",
 					"group": "overflow@2",
 					"when": "view == costrict.SidebarProvider"
+				},
+				{
+					"command": "costrict.acp.connectAgent",
+					"group": "navigation@1",
+					"when": "view == costrict.AcpProvider"
+				},
+				{
+					"command": "costrict.acp.disconnectAgent",
+					"group": "navigation@2",
+					"when": "view == costrict.AcpProvider"
+				},
+				{
+					"command": "costrict.switchToCostrictMode",
+					"group": "navigation@3",
+					"when": "view == costrict.AcpProvider"
+				},
+				{
+					"command": "costrict.settingsButtonClicked",
+					"group": "overflow@1",
+					"when": "view == costrict.AcpProvider"
+				},
+				{
+					"command": "costrict.view.userHelperDoc",
+					"group": "overflow@2",
+					"when": "view == costrict.AcpProvider"
+				},
+				{
+					"command": "costrict.view.issue",
+					"group": "overflow@3",
+					"when": "view == costrict.AcpProvider"
 				}
 			],
 			"editor/title": [
@@ -838,6 +896,54 @@
 					"default": false,
 					"description": "%settings.debugProxy.tlsInsecure.description%",
 					"markdownDescription": "%settings.debugProxy.tlsInsecure.description%"
+				},
+				"costrict.panelMode": {
+					"type": "string",
+					"default": "costrict",
+					"enum": [
+						"costrict",
+						"acp"
+					],
+					"enumDescriptions": [
+						"%settings.panelMode.costrict.description%",
+						"%settings.panelMode.acp.description%"
+					],
+					"description": "%settings.panelMode.description%"
+				},
+				"costrict.acp.agents": {
+					"type": "object",
+					"default": {},
+					"description": "%settings.acp.agents.description%",
+					"additionalProperties": {
+						"type": "object",
+						"properties": {
+							"command": {
+								"type": "string",
+								"description": "%settings.acp.agents.command.description%"
+							},
+							"args": {
+								"type": "array",
+								"items": { "type": "string" },
+								"description": "%settings.acp.agents.args.description%"
+							},
+							"env": {
+								"type": "object",
+								"additionalProperties": { "type": "string" },
+								"description": "%settings.acp.agents.env.description%"
+							},
+							"displayName": {
+								"type": "string",
+								"description": "%settings.acp.agents.displayName.description%"
+							}
+						},
+						"required": ["command"]
+					}
+				},
+				"costrict.acp.autoApprovePermissions": {
+					"type": "string",
+					"default": "none",
+					"enum": ["none", "allowAll"],
+					"description": "%settings.acp.autoApprovePermissions.description%"
 				}
 			}
 		}
@@ -858,6 +964,7 @@
 		"clean": "rimraf README.md CHANGELOG.md LICENSE dist logs mock .turbo"
 	},
 	"dependencies": {
+		"@agentclientprotocol/sdk": "^0.14.1",
 		"@ai-sdk/amazon-bedrock": "^4.0.51",
 		"@ai-sdk/baseten": "^1.0.31",
 		"@ai-sdk/deepseek": "^2.0.18",

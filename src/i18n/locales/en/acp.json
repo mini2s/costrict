@@ -1,0 +1,9 @@
+{
+	"messages": {
+		"switchedToAcpMode": "Switched to ACP mode. Please reload the window to apply changes.",
+		"switchedToCostrictMode": "Switched to CoStrict mode. Please reload the window to apply changes."
+	},
+	"commands": {
+		"reloadWindow": "Reload Window"
+	}
+}

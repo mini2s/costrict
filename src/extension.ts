@@ -44,6 +44,7 @@ import { migrateSettings } from "./utils/migrateSettings"
 import { autoImportSettings } from "./utils/autoImportSettings"
 import { API } from "./extension/api"
 import { CostrictAuthConfig } from "./core/costrict/auth/index"
+import { AcpProvider } from "./acp/AcpProvider"
 
 import {
 	handleUri,
@@ -52,7 +53,7 @@ import {
 	registerTerminalActions,
 	CodeActionProvider,
 } from "./activate"
-import { initializeI18n } from "./i18n"
+import { initializeI18n, t } from "./i18n"
 import { getCommand } from "./utils/commands"
 import { activateCoworkflowIntegration, deactivateCoworkflowIntegration } from "./core/costrict/workflow"
 import { defaultLang } from "./utils/language"
@@ -357,6 +358,59 @@ export async function activate(context: vscode.ExtensionContext) {
 	})
 
 	registerCommands({ context, outputChannel, provider })
+
+	// Initialize ACP provider
+	const acpProvider = new AcpProvider(context, outputChannel)
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(AcpProvider.viewId, acpProvider, {
+			webviewOptions: { retainContextWhenHidden: true },
+		}),
+	)
+
+	// Register ACP mode switching commands
+	context.subscriptions.push(
+		vscode.commands.registerCommand(getCommand("switchToAcpMode"), async () => {
+			const config = vscode.workspace.getConfiguration(Package.commandIDPrefix)
+			await config.update("panelMode", "acp", vscode.ConfigurationTarget.Global)
+			const reloadAction = t("acp:commands.reloadWindow")
+			const result = await vscode.window.showInformationMessage(
+				t("acp:messages.switchedToAcpMode"),
+				reloadAction,
+			)
+			if (result === reloadAction) {
+				vscode.commands.executeCommand("workbench.action.reloadWindow")
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(getCommand("switchToCostrictMode"), async () => {
+			const config = vscode.workspace.getConfiguration(Package.commandIDPrefix)
+			await config.update("panelMode", "costrict", vscode.ConfigurationTarget.Global)
+			const reloadAction = t("acp:commands.reloadWindow")
+			const result = await vscode.window.showInformationMessage(
+				t("acp:messages.switchedToCostrictMode"),
+				reloadAction,
+			)
+			if (result === reloadAction) {
+				vscode.commands.executeCommand("workbench.action.reloadWindow")
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(`${Package.commandIDPrefix}.acp.connectAgent`, async () => {
+			await vscode.commands.executeCommand("workbench.view.extension.costrict-ActivityBar")
+			await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AcpProvider.focus`)
+			await acpProvider.connectToAgent()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(`${Package.commandIDPrefix}.acp.disconnectAgent`, async () => {
+			await acpProvider.disconnectAgent()
+		}),
+	)
 
 	/**
 	 * We use the text document content provider API to show the left side for diff
