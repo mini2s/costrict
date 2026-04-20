@@ -36,6 +36,26 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
 
+      - name: Create remote directory
+        id: mkdir
+        continue-on-error: true
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          echo "Creating remote directory /home/plugin/downloads/"
+
+          sshpass -p "${SSH_PASSWORD}" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p "${SSH_PORT:-22}" \
+            "${SSH_USER}@${SSH_HOST}" \
+            "mkdir -p /home/plugin/downloads/"
+
+          echo "Directory created successfully"
+
       - name: Upload to server via SSH
         id: upload
         continue-on-error: true
@@ -47,7 +67,7 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           SOURCE_FILE="bin/zgsm-${VERSION}.vsix"
-          TARGET_PATH="/plugin/download/zgsm-${VERSION}.vsix"
+          TARGET_PATH="/home/plugin/downloads/zgsm-${VERSION}.vsix"
 
           echo "Uploading ${SOURCE_FILE} to ${SSH_HOST}:${TARGET_PATH}"
 
@@ -64,4 +84,4 @@ jobs:
         if: steps.upload.outcome == 'failure'
         run: |
           echo "::warning::SSH upload failed. VSIX was not uploaded to server."
-          echo "Please manually upload bin/zgsm-${{ steps.version.outputs.version }}.vsix to the server."
+          echo "Please manually upload bin/zgsm-${{ steps.version.outputs.version }}.vsix to /home/plugin/downloads/"
