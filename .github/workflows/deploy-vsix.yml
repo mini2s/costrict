@@ -31,7 +31,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          gh release download "v${VERSION}" --pattern "costrict-${VERSION}.vsix" --dir bin
+          gh release download "v${VERSION}" --pattern "zgsm-${VERSION}.vsix" --dir bin
 
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
@@ -46,7 +46,7 @@ jobs:
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          SOURCE_FILE="bin/costrict-${VERSION}.vsix"
+          SOURCE_FILE="bin/zgsm-${VERSION}.vsix"
           TARGET_PATH="/plugin/download/zgsm-${VERSION}.vsix"
 
           echo "Uploading ${SOURCE_FILE} to ${SSH_HOST}:${TARGET_PATH}"
@@ -64,4 +64,4 @@ jobs:
         if: steps.upload.outcome == 'failure'
         run: |
           echo "::warning::SSH upload failed. VSIX was not uploaded to server."
-          echo "Please manually upload bin/costrict-${{ steps.version.outputs.version }}.vsix to the server."
+          echo "Please manually upload bin/zgsm-${{ steps.version.outputs.version }}.vsix to the server."
