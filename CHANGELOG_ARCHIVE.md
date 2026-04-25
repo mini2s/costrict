@@ -2,6 +2,23 @@
 
 > This file contains historical version records. For the latest versions, please visit [CHANGELOG.md](./CHANGELOG.md)
 
+## [2.6.6]
+
+- Fix prevent stale abort requests from killing newly started commands (#1126)
+- Fix terminal abort logic to ensure background processes can still be interrupted after continue (#1126)
+- Fix Stop button not available during auto-approved command execution (#1126)
+- Fix UI freeze on command output interruption, switch to backend-driven state transitions (#1126)
+- Fix known issues
+
+## [2.6.5]
+
+- Add raw telemetry reporting for Costrict tasks and commits
+- Update model params and i18n translations
+- Fix ensure issues are loaded from cache in ReviewHistoryItem
+- Fix prevent parent task state loss during orchestrator delegation
+- Sync roocode [last commit](https://github.com/RooCodeInc/Roo-Code/commit/7adbfec2a4219911be28b564986011e1088e5a6d)
+- Fix known issues
+
 ## [2.6.4]
 
 - Add mention budget system to prevent context overflow
