@@ -2,6 +2,13 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [2.7.7]
+
+- Add build time display to About section
+- Expose isStreaming state to webview for better UI state management
+- Update Costrict default rendering configuration
+- Fix known issues
+
 ## [2.7.6]
 
 - Unify error handling across providers and improve retry UX (#1156)
