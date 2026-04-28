@@ -2816,6 +2816,7 @@ export class ClineProvider
 			autoCondenseContext: autoCondenseContext ?? true,
 			autoCondenseContextPercent: autoCondenseContextPercent ?? 100,
 			uriScheme: vscode.env.uriScheme,
+			isStreaming: currentTask?.isStreaming ?? false,
 			currentTaskId: currentTask?.taskId,
 			currentTaskItem:
 				options?.includeCurrentTaskDetails === false || !currentTask?.taskId

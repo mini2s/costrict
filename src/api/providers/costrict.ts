@@ -406,22 +406,20 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 						],
 					}
 				: { role: "system" as const, content: systemPrompt }
-			if (_mid?.includes("auto") || _mid?.includes("deepseek")|| _mid?.includes("kimi") || _mid?.includes("glm") || isMiniMax || _mid?.includes("claude")) {
-				convertedMessages = [
-					{ role: "system", content: systemPrompt },
-					...convertToZAiFormat(messages, { mergeToolResultText: true }),
-				]
-			} else {
-				if (_mid?.includes("qwen-2.5-vl")) {
-					if (Array.isArray(systemMessage.content)) {
-						systemMessage.content[0].text = systemMessage.content[0].text + "\n" + liteToolContractPrompt()
-					} else {
-						systemMessage.content = systemMessage.content + "\n" + liteToolContractPrompt()
-					}
+			if (_mid?.includes("qwen-2.5-vl")) {
+				if (Array.isArray(systemMessage.content)) {
+					systemMessage.content[0].text = systemMessage.content[0].text + "\n" + liteToolContractPrompt()
+				} else {
+					systemMessage.content = systemMessage.content + "\n" + liteToolContractPrompt()
 				}
 				convertedMessages = [
 					systemMessage,
 					...convertToOpenAiMessages(messages, { mergeToolResultText: isNative }),
+				]
+			} else {
+				convertedMessages = [
+					{ role: "system", content: systemPrompt },
+					...convertToZAiFormat(messages, { mergeToolResultText: true }),
 				]
 			}
 		}
@@ -942,9 +940,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 		}
 		const _mid = id.toLowerCase()
 		if (
-			(_mid?.includes("auto") || _mid?.includes("kimi") ||
-				_mid?.includes("minimax") ||
-				_mid?.includes("glm")) &&
+			(_mid?.includes("auto") || _mid?.includes("kimi") || _mid?.includes("minimax") || _mid?.includes("glm")) &&
 			info.preserveReasoning == null
 		) {
 			info.preserveReasoning = true

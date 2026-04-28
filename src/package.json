@@ -773,7 +773,7 @@
 						"medium",
 						"slow"
 					],
-					"default": "fast",
+					"default": "noLimit",
 					"description": "%settings.apiResponseRenderMode.description%"
 				},
 				"costrict.newTaskRequireTodos": {
