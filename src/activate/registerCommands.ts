@@ -32,6 +32,42 @@ interface ProcessedResource {
 	content: string
 }
 
+type UiMode = "classic" | "assistant-ui"
+
+const uiModeQuickPickItems: Array<{
+	label: string
+	description: string
+	value: UiMode
+}> = [
+	{
+		label: "Classic Mode",
+		description: "Use the current CoStrict UI and logic",
+		value: "classic",
+	},
+	{
+		label: "Cloud Mode",
+		description: "Use the Cloud UI on next launch",
+		value: "assistant-ui",
+	},
+]
+
+export const getConfiguredUiMode = (): UiMode => {
+	const configured = vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
+	return configured === "assistant-ui" ? "assistant-ui" : "classic"
+}
+
+const promptToReloadForUiModeChange = async () => {
+	const reloadNow = await vscode.window.showInformationMessage(
+		"UI mode updated. Reload Window to apply.",
+		"Reload Now",
+		"Later",
+	)
+
+	if (reloadNow === "Reload Now") {
+		await vscode.commands.executeCommand("workbench.action.reloadWindow")
+	}
+}
+
 /**
  * Helper to get the visible ClineProvider instance or log if not found.
  */
@@ -142,6 +178,41 @@ export const getCommandsMap = ({
 		visibleProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		// Also explicitly post the visibility message to trigger scroll reliably
 		visibleProvider.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+	},
+	switchUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const selection = await vscode.window.showQuickPick(
+			uiModeQuickPickItems.map((item) => ({
+				...item,
+				detail: item.value === currentMode ? "Current mode" : undefined,
+			})),
+			{
+				title: "Switch CoStrict UI Mode",
+				placeHolder: "Choose which UI mode to switch to",
+				ignoreFocusOut: true,
+			},
+		)
+
+		if (!selection || selection.value === currentMode) {
+			return
+		}
+
+		await vscode.workspace
+			.getConfiguration(Package.commandIDPrefix)
+			.update("uiMode", selection.value, vscode.ConfigurationTarget.Global)
+
+		// Update the context key so that VSCode re-evaluates the "when" clauses
+		// in package.json and shows/hides the correct sidebar view.
+		await vscode.commands.executeCommand("setContext", "costrict.uiMode", selection.value)
+
+		// Focus the newly activated sidebar view.
+		if (selection.value === "assistant-ui") {
+			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+		} else {
+			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+		}
+
+		void vscode.window.showInformationMessage(`Switched to ${selection.label}`)
 	},
 	historyButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)

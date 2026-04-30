@@ -192,6 +192,19 @@ async function main() {
 						buildDir,
 					)
 
+					const assistantUiOutSrc = path.join(srcDir, "assets", "assistant-ui", "out")
+					const assistantUiOutDest = path.join(distDir, "assets", "assistant-ui", "out")
+					if (fs.existsSync(assistantUiOutSrc)) {
+						if (fs.existsSync(assistantUiOutDest)) {
+							fs.rmSync(assistantUiOutDest, { recursive: true, force: true })
+						}
+						fs.mkdirSync(path.dirname(assistantUiOutDest), { recursive: true })
+						copyDirSync(assistantUiOutSrc, assistantUiOutDest)
+						console.log(`[copyFiles] Copied assistant-ui static export to ${assistantUiOutDest}`)
+					} else {
+						console.warn(`[copyFiles] Assistant UI static export not found: ${assistantUiOutSrc}`)
+					}
+
 					// node-pty must be copied to dist/node_modules/node-pty so that the
 					// bundled extension.js can require('node-pty') at runtime.
 					// In pnpm workspaces, node-pty is a symlink; we resolve it here so

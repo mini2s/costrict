@@ -59,6 +59,9 @@ import { defaultLang } from "./utils/language"
 import { createLogger } from "./utils/logger"
 import { loadIdeaShellEnvOnce } from "./utils/ideaShellEnvLoader"
 import { isJetbrainsPlatform } from "./utils/platform"
+import { AssistantUISidebarProvider } from "./core/cs-cloud/extension/sidebarProvider"
+import { CsCloudService } from "./core/cs-cloud/extension/csCloudService"
+import { getConfiguredUiMode } from "./activate/registerCommands"
 // import { flushModels, getModels, initializeModelCacheRefresh } from "./api/providers/fetchers/modelCache"
 
 /**
@@ -216,125 +219,18 @@ export async function activate(context: vscode.ExtensionContext) {
 	// 	}
 	// }
 
-	// Initialize the provider *before* the CoStrict Cloud service.
+	// Determine UI mode and set context key for view visibility.
+	// Both providers are registered unconditionally so that switching
+	// modes does not require a window reload.
+	const uiMode = getConfiguredUiMode()
+	vscode.commands.executeCommand("setContext", "costrict.uiMode", uiMode)
+	outputChannel.appendLine(`[Extension] UI mode: ${uiMode}`)
+
+	// ClineProvider is always created for API compatibility and registered
+	// as a sidebar provider. It is hidden by the "when" clause in package.json
+	// when the mode is assistant-ui.
 	// const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, mdmService)
 	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy)
-
-	// // Initialize Roo Code Cloud service.
-	// const postStateListener = () => ClineProvider.getVisibleInstance()?.postStateToWebviewWithoutClineMessages()
-
-	// authStateChangedHandler = async (data: { state: AuthState; previousState: AuthState }) => {
-	// 	postStateListener()
-
-	// 	if (data.state === "logged-out") {
-	// 		try {
-	// 			await provider.remoteControlEnabled(false)
-	// 		} catch (error) {
-	// 			cloudLogger(
-	// 				`[authStateChangedHandler] remoteControlEnabled(false) failed: ${error instanceof Error ? error.message : String(error)}`,
-	// 			)
-	// 		}
-	// 	}
-	// // Handle Roo models cache based on auth state
-	// 	const handleRooModelsCache = async () => {
-	// 		try {
-	// 			await flushModels("roo")
-
-	// 			if (data.state === "active-session") {
-	// 				// Reload models with the new auth token
-	// 				const sessionToken = cloudService?.authService?.getSessionToken()
-	// 				await getModels({
-	// 					provider: "roo",
-	// 					baseUrl: process.env.ROO_CODE_PROVIDER_URL ?? "https://api.roocode.com/proxy",
-	// 					apiKey: sessionToken,
-	// 				})
-	// 				cloudLogger(`[authStateChangedHandler] Reloaded Roo models cache for active session`)
-	// 			} else {
-	// 				cloudLogger(`[authStateChangedHandler] Flushed Roo models cache on logout`)
-	// 			}
-	// 		} catch (error) {
-	// 			cloudLogger(
-	// 				`[authStateChangedHandler] Failed to handle Roo models cache: ${error instanceof Error ? error.message : String(error)}`,
-	// 			)
-	// 		}
-	// 	}
-
-	// 	if (data.state === "active-session" || data.state === "logged-out") {
-	// 		await handleRooModelsCache()
-	// 	}
-	// }
-
-	// settingsUpdatedHandler = async () => {
-	// 	const userInfo = CloudService.instance.getUserInfo()
-
-	// if (userInfo && CloudService.instance.cloudAPI) {
-	// 	try {
-	// 		provider.remoteControlEnabled(CloudService.instance.isTaskSyncEnabled())
-	// 	} catch (error) {
-	// 		cloudLogger(
-	// 			`[settingsUpdatedHandler] remoteControlEnabled failed: ${error instanceof Error ? error.message : String(error)}`,
-	// 		)
-	// 	}
-	// }
-
-	// 	postStateListener()
-	// }
-
-	// userInfoHandler = async ({ userInfo }: { userInfo: CloudUserInfo }) => {
-	// 	postStateListener()
-
-	// 	if (!CloudService.instance.cloudAPI) {
-	// 		cloudLogger("[userInfoHandler] CloudAPI is not initialized")
-	// 		return
-	// 	}
-
-	// 	try {
-	// 		provider.remoteControlEnabled(CloudService.instance.isTaskSyncEnabled())
-	// 	} catch (error) {
-	// 		cloudLogger(
-	// 			`[userInfoHandler] remoteControlEnabled failed: ${error instanceof Error ? error.message : String(error)}`,
-	// 		)
-	// 	}
-	// }
-
-	// cloudService = await CloudService.createInstance(context, cloudLogger, {
-	// 	"auth-state-changed": authStateChangedHandler,
-	// 	"settings-updated": settingsUpdatedHandler,
-	// 	"user-info": userInfoHandler,
-	// })
-
-	// try {
-	// 	if (cloudService.telemetryClient) {
-	// 		TelemetryService.instance.register(cloudService.telemetryClient)
-	// 	}
-	// } catch (error) {
-	// 	outputChannel.appendLine(
-	// 		`[CloudService] Failed to register TelemetryClient: ${error instanceof Error ? error.message : String(error)}`,
-	// 	)
-	// }
-
-	// // Add to subscriptions for proper cleanup on deactivate.
-	// context.subscriptions.push(cloudService)
-
-	// // Trigger initial cloud profile sync now that CloudService is ready
-	// try {
-	// 	await provider.initializeCloudProfileSyncWhenReady()
-	// } catch (error) {
-	// 	outputChannel.appendLine(
-	// 		`[CloudService] Failed to initialize cloud profile sync: ${error instanceof Error ? error.message : String(error)}`,
-	// 	)
-	// }
-	// Trigger initial cloud profile sync now that CloudService is ready.
-	// try {
-	// 	await provider.initializeCloudProfileSyncWhenReady()
-	// } catch (error) {
-	// 	outputChannel.appendLine(
-	// 		`[CloudService] Failed to initialize cloud profile sync: ${error instanceof Error ? error.message : String(error)}`,
-	// 	)
-	// }
-
-	// // Finish initializing the provider.
-	// TelemetryService.instance.setProvider(provider)
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, provider, {
@@ -342,19 +238,43 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Check for worktree auto-open path (set when switching to a worktree)
-	await checkWorktreeAutoOpen(context, outputChannel)
+	// AssistantUISidebarProvider is also registered unconditionally.
+	// It is hidden by the "when" clause in package.json when the mode is classic.
+	const assistantProvider = new AssistantUISidebarProvider(context, outputChannel)
 
-	// Auto-import configuration if specified in settings, without blocking activation.
-	void autoImportSettings(outputChannel, {
-		providerSettingsManager: provider.providerSettingsManager,
-		contextProxy: provider.contextProxy,
-		customModesManager: provider.customModesManager,
-	}).catch((error) => {
-		outputChannel.appendLine(
-			`[AutoImport] Error during auto-import: ${error instanceof Error ? error.message : String(error)}`,
-		)
-	})
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(AssistantUISidebarProvider.viewType, assistantProvider, {
+			webviewOptions: { retainContextWhenHidden: true },
+		}),
+	)
+
+	// Pre-start cs-cloud daemon when in assistant-ui mode so it's ready by the
+	// time the user opens the sidebar.
+	if (uiMode === "assistant-ui") {
+		const csCloudService = new CsCloudService(outputChannel)
+		context.subscriptions.push(csCloudService)
+		void csCloudService.ensureStarted().catch((err) => {
+			outputChannel.appendLine(
+				`[cs-cloud] auto-start failed: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		})
+	}
+
+	if (uiMode === "classic") {
+		// Check for worktree auto-open path (set when switching to a worktree)
+		await checkWorktreeAutoOpen(context, outputChannel)
+
+		// Auto-import configuration if specified in settings, without blocking activation.
+		void autoImportSettings(outputChannel, {
+			providerSettingsManager: provider.providerSettingsManager,
+			contextProxy: provider.contextProxy,
+			customModesManager: provider.customModesManager,
+		}).catch((error) => {
+			outputChannel.appendLine(
+				`[AutoImport] Error during auto-import: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		})
+	}
 
 	registerCommands({ context, outputChannel, provider })
 

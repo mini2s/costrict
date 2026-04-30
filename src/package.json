@@ -3,7 +3,7 @@
 	"displayName": "%extension.displayName.long%",
 	"description": "%extension.description%",
 	"publisher": "zgsm-ai",
-	"version": "2.7.7",
+	"version": "3.0.0",
 	"icon": "assets/images/shenma_robot_logo_big.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -88,7 +88,15 @@
 					"type": "webview",
 					"id": "costrict.SidebarProvider",
 					"name": "%views.sidebar.name%",
-					"icon": "assets/images/shenma_robot_logo_big.png"
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "costrict.uiMode == classic"
+				},
+				{
+					"type": "webview",
+					"id": "costrict.AssistantUISidebarProvider",
+					"name": "%views.sidebar.name%",
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "costrict.uiMode == assistant-ui"
 				}
 			]
 		},
@@ -132,6 +140,11 @@
 				"command": "costrict.settingsButtonClicked",
 				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "costrict.switchUiMode",
+				"title": "Switch UI Mode",
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "costrict.openInNewTab",
@@ -728,6 +741,66 @@
 					"default": "",
 					"description": "%settings.customStoragePath.description%"
 				},
+				"costrict.uiMode": {
+					"type": "string",
+					"enum": [
+						"classic",
+						"assistant-ui"
+					],
+					"default": "classic",
+					"description": "Controls which UI mode CoStrict loads on startup. Changes apply after reloading the window."
+				},
+				"costrict.csCloudBaseUrl": {
+					"type": "string",
+					"default": "http://127.0.0.1:34961",
+					"description": "Base URL for the local cs-cloud control plane used by Cloud UI mode."
+				},
+				"costrict.assistantUI.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable the isolated Assistant UI / cs-cloud mode."
+				},
+				"costrict.assistantUI.csCloudPath": {
+					"type": "string",
+					"default": "cs-cloud",
+					"description": "Command or absolute path used to start cs-cloud for Assistant UI mode."
+				},
+				"costrict.assistantUI.port": {
+					"type": "number",
+					"default": 45489,
+					"minimum": 1,
+					"maximum": 65535,
+					"description": "Local port used by Assistant UI mode when starting cs-cloud."
+				},
+				"costrict.assistantUI.autoStartCsCloud": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically start cs-cloud when opening Assistant UI mode if no service is already available on the configured port."
+				},
+				"costrict.assistantUI.baseUrl": {
+					"type": "string",
+					"default": "",
+					"description": "Explicit OpenCode-compatible cs-cloud API base URL for Assistant UI mode, for example http://127.0.0.1:45489/api/v1. When set, the extension will not start cs-cloud."
+				},
+				"costrict.assistantUI.webUrl": {
+					"type": "string",
+					"default": "http://127.0.0.1:3000",
+					"description": "Temporary Assistant UI web app URL loaded by the VSCode Webview demo. Use the with-opencode Next dev server until static Webview assets are added."
+				},
+				"costrict.assistantUI.webviewMode": {
+					"type": "string",
+					"enum": [
+						"static",
+						"iframe"
+					],
+					"default": "static",
+					"description": "Assistant UI Webview loading mode. Use static for bundled Phase 4B assets or iframe for the local Next.js development server fallback."
+				},
+				"costrict.assistantUI.debug": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show Assistant UI diagnostics and pass assistantUIDebug=1 to the iframe fallback. Keep disabled for normal isolated static mode."
+				},
 				"costrict.enableCodeActions": {
 					"type": "boolean",
 					"default": true,
@@ -849,8 +922,9 @@
 		"test": "vitest run",
 		"format": "prettier --write .",
 		"build:native": "cd node_modules/node-pty && npx node-gyp rebuild",
+		"assistant-ui:build-static": "node scripts/build-assistant-ui-static.mjs",
 		"bundle": "node esbuild.mjs",
-		"vscode:prepublish": "node ../scripts/download-bundled-skills.mjs && pnpm bundle --production",
+		"vscode:prepublish": "node ../scripts/download-bundled-skills.mjs && pnpm assistant-ui:build-static && pnpm bundle --production",
 		"vsix": "mkdirp ../bin && vsce package --no-dependencies --out ../bin",
 		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
 		"watch:bundle": "pnpm bundle --watch",
