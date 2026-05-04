@@ -490,6 +490,11 @@ export function getAssistantUIIframeHtml(
           frame.contentWindow.postMessage(event.data, "*");
         }
       }
+      if (event.data?.type === "theme") {
+        if (frame?.contentWindow) {
+          frame.contentWindow.postMessage(event.data, "*");
+        }
+      }
     });
   </script>
   <iframe id="assistant-ui-frame" src="${escapeHtml(frameUrl)}" title="CoStrict Assistant UI"></iframe>

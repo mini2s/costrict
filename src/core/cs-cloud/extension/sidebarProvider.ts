@@ -126,6 +126,16 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			webviewView.webview.html = this.getErrorHtml(message)
 		}
 
+		// Handle VS Code theme changes
+		vscode.window.onDidChangeActiveColorTheme(
+			(e) => {
+				const theme = e.kind === 1 || e.kind === 4 ? "light" : "dark"
+				webviewView.webview.postMessage({ type: "theme", theme })
+			},
+			null,
+			this.disposables,
+		)
+
 		// Handle visibility changes
 		webviewView.onDidChangeVisibility(
 			() => {
