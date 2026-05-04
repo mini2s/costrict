@@ -84,14 +84,14 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
-		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Assistant UI...")
+		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
 
 		try {
 			const workspaceDirectory = getAssistantUIWorkspaceDirectory()
 			const baseUrl = await vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
-					title: "Starting CoStrict Assistant UI",
+					title: "Starting CoStrict Cloud",
 					cancellable: false,
 				},
 				() => this.csCloudService.ensureStarted(),
@@ -176,7 +176,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
   </style>
 </head>
 <body>
-  <h3>Failed to load CoStrict Assistant UI</h3>
+  <h3>Failed to load CoStrict Cloud</h3>
   <pre>${message.replace(/</g, "&lt;")}</pre>
 </body>
 </html>`

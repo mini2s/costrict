@@ -429,7 +429,7 @@ export function getAssistantUIIframeHtml(
 </head>
 <body>
   <div id="assistant-ui-diagnostics">Assistant UI diagnostics: checking cs-cloud...</div>
-  ${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Assistant UI...")}
+  ${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Cloud...")}
   <script nonce="${nonce}">
     window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)};
     window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};
