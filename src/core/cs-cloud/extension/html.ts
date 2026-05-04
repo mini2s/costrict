@@ -20,9 +20,6 @@ export function buildAssistantUIFrameUrl(
 	if (debug) {
 		url.searchParams.set("assistantUIDebug", "1")
 	}
-	if (accessToken) {
-		url.searchParams.set("csCloudAccessToken", accessToken)
-	}
 	if (costrictWebUrl) {
 		url.searchParams.set("costrictWebUrl", costrictWebUrl)
 	}
@@ -288,17 +285,25 @@ export function getAssistantUIStaticHtml(
 			workspaceDirectory,
 			accessToken,
 			config.debug,
+			costrictWebUrl,
 		)
 	}
 
 	const nonce = getNonce()
+	let csCloudOrigin: string
+	try {
+		csCloudOrigin = new URL(csCloudBaseUrl).origin
+	} catch {
+		csCloudOrigin = csCloudBaseUrl
+	}
 	const csp = [
-		"default-src 'none'",
-		`img-src ${webview.cspSource} https://*.githubusercontent.com data: blob:`,
-		`font-src ${webview.cspSource}`,
+		`default-src 'none'`,
+		`font-src ${webview.cspSource} data:`,
 		`style-src ${webview.cspSource} 'unsafe-inline'`,
-		`script-src 'nonce-${nonce}' ${webview.cspSource}`,
-		`connect-src ${csCloudBaseUrl.replace(/\/api\/v1$/, "")} http://127.0.0.1:* http://localhost:*`,
+		`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com data:`,
+		`media-src ${webview.cspSource}`,
+		`script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com 'strict-dynamic'`,
+		`connect-src ${webview.cspSource} ${csCloudOrigin} https://*.sangfor.com https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com`,
 	].join("; ")
 
 	let html = fs.readFileSync(indexPath, "utf8")
@@ -308,7 +313,32 @@ export function getAssistantUIStaticHtml(
 	html = injectIntoHead(
 		html,
 		`<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}" />\n` +
-			`<script nonce="${nonce}">window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)}; window.__CS_CLOUD_WORKSPACE_DIRECTORY__ = ${JSON.stringify(workspaceDirectory)}; window.__ASSISTANT_UI_THEME__ = ${JSON.stringify(getAssistantUITheme())}; window.__CS_CLOUD_ACCESS_TOKEN__ = ${JSON.stringify(accessToken || "")};window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};</script>`,
+			`<script nonce="${nonce}">
+        window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)}; 
+        window.__CS_CLOUD_WORKSPACE_DIRECTORY__ = ${JSON.stringify(workspaceDirectory)}; 
+        window.__ASSISTANT_UI_THEME__ = ${JSON.stringify(getAssistantUITheme())}; 
+        window.__CS_CLOUD_ACCESS_TOKEN__ = ${JSON.stringify(accessToken || "")};
+        window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};
+
+        (function(){
+          const v=acquireVsCodeApi();
+          window.__VSCODE_API__=v;
+          window.addEventListener("message",function(e){
+            if(e.data?.type==="FETCH_QUOTA"){
+              v.postMessage({type:"fetchQuota",baseUrl:e.data.baseUrl,token:e.data.token});
+            }
+
+            if (event.data?.type === "openExternal" && event.data.url) {
+              v.postMessage({ type: "openExternal", url: event.data.url });
+              return;
+            }
+            if (event.data?.type === "openFile" && event.data.path) {
+              v.postMessage({ type: "openFile", path: event.data.path });
+              return;
+            }
+          });
+        })();
+    </script>`,
 	)
 	return html
 }
@@ -336,11 +366,13 @@ export function getAssistantUIIframeHtml(
 	)
 	const csp = [
 		"default-src 'none'",
-		`img-src ${webview.cspSource} https: data:`,
-		`style-src ${webview.cspSource} 'unsafe-inline' http://127.0.0.1:* http://localhost:*`,
-		`script-src 'nonce-${nonce}'`,
+		`font-src ${webview.cspSource} data:`,
+		`style-src ${webview.cspSource} 'unsafe-inline' http://127.0.0.1:* http://localhost:* http://0.0.0.0:*`,
+		`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com https: data:`,
+		`media-src ${webview.cspSource}`,
+		`script-src 'unsafe-eval' ${webview.cspSource} https://* https://*.posthog.com http://127.0.0.1:* http://localhost:* http://0.0.0.0:* 'nonce-${nonce}'`,
 		"frame-src http://127.0.0.1:* http://localhost:*",
-		"connect-src http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
+		`connect-src ${webview.cspSource} https://* https://*.posthog.com https://*.sangfor.com ws://127.0.0.1:* ws://0.0.0.0:* ws://localhost:*  http://127.0.0.1:* http://localhost:* `,
 	].join("; ")
 
 	const diagnosticsStyle = debug ? "" : "display: none;"
@@ -413,16 +445,50 @@ export function getAssistantUIIframeHtml(
     };
     window.addEventListener("DOMContentLoaded", function () {
       const frame = document.getElementById("assistant-ui-frame");
-      if (frame) frame.addEventListener("load", window.__ASSISTANT_UI_HIDE_LOADING__);
+      if (frame) {
+        frame.addEventListener("load", function () {
+          window.__ASSISTANT_UI_HIDE_LOADING__();
+          if (frame.contentWindow && window.__CS_CLOUD_ACCESS_TOKEN__) {
+            frame.contentWindow.postMessage({ type: "ACCESS_TOKEN", token: window.__CS_CLOUD_ACCESS_TOKEN__ }, "*");
+          }
+        });
+      }
       setTimeout(window.__ASSISTANT_UI_HIDE_LOADING__, 8000);
     });
     const vscodeApi = acquireVsCodeApi();
     window.addEventListener("message", function (event) {
-      if (event.data && event.data.type === "openExternal" && event.data.url) {
-        vscodeApi.postMessage({ type: "openExternal", url: event.data.url });
+      const frame = document.getElementById("assistant-ui-frame");
+
+      // 来自 iframe 的消息：转发给 VS Code
+      if (event.source === frame?.contentWindow) {
+        if (event.data?.type === "REQUEST_ACCESS_TOKEN") {
+          if (frame.contentWindow && window.__CS_CLOUD_ACCESS_TOKEN__) {
+            frame.contentWindow.postMessage({ type: "ACCESS_TOKEN", token: window.__CS_CLOUD_ACCESS_TOKEN__ }, "*");
+          }
+          return;
+        }
+        if (event.data?.type === "FETCH_QUOTA") {
+          console.log("[iframe-wrapper] received FETCH_QUOTA from iframe, forwarding to VS Code", event.data);
+          vscodeApi.postMessage({ type: "fetchQuota", baseUrl: event.data.baseUrl, token: event.data.token });
+          return;
+        }
+        if (event.data?.type === "openExternal" && event.data.url) {
+          vscodeApi.postMessage({ type: "openExternal", url: event.data.url });
+          return;
+        }
+        if (event.data?.type === "openFile" && event.data.path) {
+          vscodeApi.postMessage({ type: "openFile", path: event.data.path });
+          return;
+        }
+        return;
       }
-      if (event.data && event.data.type === "openFile" && event.data.path) {
-        vscodeApi.postMessage({ type: "openFile", path: event.data.path });
+
+      // 来自 VS Code 的消息：转发给 iframe
+      if (event.data?.type === "quotaResult") {
+        console.log("[iframe-wrapper] forwarding quotaResult to iframe", event.data);
+        if (frame?.contentWindow) {
+          frame.contentWindow.postMessage(event.data, "*");
+        }
       }
     });
   </script>

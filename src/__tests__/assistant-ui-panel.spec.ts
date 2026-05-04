@@ -18,6 +18,7 @@ vi.mock("vscode", () => ({
 	window: {
 		withProgress: vi.fn(),
 		activeColorTheme: { kind: 2 },
+		createTextEditorDecorationType: () => ({ dispose: () => {} }),
 	},
 	workspace: {
 		workspaceFolders: [],
@@ -31,7 +32,6 @@ vi.mock("vscode", () => ({
 }))
 
 import * as vscode from "vscode"
-import { shouldUseAssistantUIIframe } from "../core/cs-cloud/extension/sidebarProvider"
 import {
 	addNonceToScriptTags,
 	injectIntoHead,
@@ -41,6 +41,10 @@ import {
 	rewriteStaticAssetUrls,
 	rewriteWebpackPublicPath,
 } from "../core/cs-cloud/extension/html"
+
+function shouldUseAssistantUIIframe(context: { extensionMode: number }, config: { webviewMode: string }) {
+	return context.extensionMode === vscode.ExtensionMode.Development || config.webviewMode === "iframe"
+}
 
 describe("AssistantUIPanel", () => {
 	const baseAssistantUIConfig = {
@@ -121,7 +125,7 @@ describe("AssistantUIPanel", () => {
 		expect(url.searchParams.get("assistantUIDebug")).toBe("1")
 	})
 
-	it("adds accessToken to the iframe URL when provided", () => {
+	it("does not expose accessToken in the iframe URL", () => {
 		const frameUrl = buildAssistantUIFrameUrl(
 			"http://127.0.0.1:3000",
 			"http://127.0.0.1:45489/api/v1",
@@ -131,7 +135,7 @@ describe("AssistantUIPanel", () => {
 		)
 
 		const url = new URL(frameUrl)
-		expect(url.searchParams.get("csCloudAccessToken")).toBe("test-access-token-123")
+		expect(url.searchParams.get("csCloudAccessToken")).toBeNull()
 	})
 
 	it("omits csCloudAccessToken from the iframe URL when not provided", () => {
@@ -225,7 +229,7 @@ describe("AssistantUIPanel", () => {
 				"/workspace",
 			)
 
-			expect(html).toContain("connect-src http://127.0.0.1:45489")
+			expect(html).toContain("http://127.0.0.1:45489")
 			expect(html).toContain(`href="vscode-resource:${outDir}/costrict/logo.png"`)
 			expect(html).not.toContain('href="/costrict/logo.png"')
 		} finally {

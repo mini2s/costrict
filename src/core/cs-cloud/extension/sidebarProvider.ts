@@ -39,7 +39,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 
 		// Handle messages from webview (e.g. openExternal from iframe)
 		webviewView.webview.onDidReceiveMessage(
-			(message: { type: string; url?: string; path?: string }) => {
+			async (message: { type: string; url?: string; path?: string; baseUrl?: string; token?: string }) => {
 				if (message.type === "openExternal" && message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
@@ -50,6 +50,28 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 						: path.join(workspaceDir || "", message.path)
 					const uri = vscode.Uri.file(filePath)
 					vscode.commands.executeCommand("vscode.open", uri)
+				}
+				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
+					console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)
+					try {
+						const response = await fetch(`${message.baseUrl}/quota-manager/api/v1/quota`, {
+							headers: {
+								Authorization: `Bearer ${message.token}`,
+								"Content-Type": "application/json",
+							},
+						})
+						console.log("[sidebarProvider] quota response status", response.status)
+						if (response.ok) {
+							const json = await response.json()
+							console.log("[sidebarProvider] posting quotaResult", json?.data)
+							webviewView.webview.postMessage({ type: "quotaResult", data: json?.data ?? null })
+						} else {
+							webviewView.webview.postMessage({ type: "quotaResult", data: null })
+						}
+					} catch (err) {
+						console.error("[sidebarProvider] quota fetch failed", err)
+						webviewView.webview.postMessage({ type: "quotaResult", data: null })
+					}
 				}
 			},
 			null,
@@ -95,6 +117,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					baseUrl,
 					workspaceDirectory,
 					accessToken ?? undefined,
+					costrictWebUrl,
 				)
 			}
 		} catch (error) {
