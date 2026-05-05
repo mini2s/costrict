@@ -1,4 +1,6 @@
 import * as vscode from "vscode"
+import * as fs from "fs"
+import * as os from "os"
 import * as path from "path"
 import { CsCloudService } from "./csCloudService"
 import { getAssistantUIConfig, type AssistantUIConfig } from "./config"
@@ -106,9 +108,25 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				},
 				() => this.csCloudService.ensureStarted(),
 			)
-			const accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
-			const costrictWebUrl = CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()
+			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
 
+			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
+			if (!accessToken) {
+				try {
+					const authFilePath = path.join(os.homedir(), ".costrict", "share", "auth.json")
+					if (fs.existsSync(authFilePath)) {
+						const content = fs.readFileSync(authFilePath, "utf-8")
+						const data = JSON.parse(content)
+						if (data?.access_token) {
+							accessToken = data.access_token
+						}
+					}
+				} catch (error) {
+					console.error("Failed to read fallback auth file:", error)
+				}
+			}
+			const costrictWebUrl = CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()
+			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
 			if (shouldUseAssistantUIIframe(this.context, config)) {
 				webviewView.webview.html = getAssistantUIIframeHtml(
 					webviewView.webview,
