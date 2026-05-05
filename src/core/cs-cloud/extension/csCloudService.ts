@@ -145,7 +145,7 @@ function isHttpReady(url: string): Promise<boolean> {
 }
 
 async function assertOpenCodeCompatible(baseUrl: string): Promise<void> {
-	const probeUrl = `${baseUrl}/experimental/session?roots=true&archived=true`
+	const probeUrl = `${baseUrl}/conversations?roots=true&archived=true`
 	const statusCode = await getStatusCode(probeUrl)
 	if (statusCode >= 200 && statusCode < 500 && statusCode !== 404) {
 		return

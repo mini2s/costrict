@@ -200,9 +200,9 @@ async function main() {
 						}
 						fs.mkdirSync(path.dirname(assistantUiOutDest), { recursive: true })
 						copyDirSync(assistantUiOutSrc, assistantUiOutDest)
-						console.log(`[copyFiles] Copied assistant-ui static export to ${assistantUiOutDest}`)
+						console.log(`[copyFiles] Copied cloud-ui static export to ${assistantUiOutDest}`)
 					} else {
-						console.warn(`[copyFiles] Assistant UI static export not found: ${assistantUiOutSrc}`)
+						console.warn(`[copyFiles] Cloud UI static export not found: ${assistantUiOutSrc}`)
 					}
 
 					// node-pty must be copied to dist/node_modules/node-pty so that the

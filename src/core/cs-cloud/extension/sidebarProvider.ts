@@ -39,7 +39,14 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 
 		// Handle messages from webview (e.g. openExternal from iframe)
 		webviewView.webview.onDidReceiveMessage(
-			async (message: { type: string; url?: string; path?: string; baseUrl?: string; token?: string }) => {
+			async (message: {
+				type: string
+				url?: string
+				path?: string
+				baseUrl?: string
+				token?: string
+				command?: string
+			}) => {
 				if (message.type === "openExternal" && message.url) {
 					vscode.env.openExternal(vscode.Uri.parse(message.url))
 				}
@@ -50,6 +57,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 						: path.join(workspaceDir || "", message.path)
 					const uri = vscode.Uri.file(filePath)
 					vscode.commands.executeCommand("vscode.open", uri)
+				}
+				if (message.type === "executeCommand" && message.command) {
+					vscode.commands.executeCommand(message.command)
 				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
 					console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)

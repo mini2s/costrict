@@ -32,7 +32,7 @@ interface ProcessedResource {
 	content: string
 }
 
-type UiMode = "classic" | "assistant-ui"
+type UiMode = "classic" | "cloud"
 
 const uiModeQuickPickItems: Array<{
 	label: string
@@ -47,13 +47,13 @@ const uiModeQuickPickItems: Array<{
 	{
 		label: "Cloud Mode",
 		description: "Use the Cloud UI on next launch",
-		value: "assistant-ui",
+		value: "cloud",
 	},
 ]
 
 export const getConfiguredUiMode = (): UiMode => {
 	const configured = vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
-	return configured === "assistant-ui" ? "assistant-ui" : "classic"
+	return configured === "cloud" ? "cloud" : "classic"
 }
 
 const promptToReloadForUiModeChange = async () => {
@@ -206,7 +206,7 @@ export const getCommandsMap = ({
 		await vscode.commands.executeCommand("setContext", "costrict.uiMode", selection.value)
 
 		// Focus the newly activated sidebar view.
-		if (selection.value === "assistant-ui") {
+		if (selection.value === "cloud") {
 			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
 		} else {
 			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")

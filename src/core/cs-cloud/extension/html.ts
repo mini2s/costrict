@@ -125,7 +125,7 @@ function getLoadingStyles() {
     @keyframes assistantUILoadingSpin {
       to { transform: rotate(360deg); }
     }
-    #assistant-ui-loading {
+    #cloud-ui-loading {
       position: absolute;
       inset: 0;
       z-index: 10;
@@ -136,31 +136,31 @@ function getLoadingStyles() {
       font-family: var(--vscode-font-family, sans-serif);
       transition: opacity 160ms ease;
     }
-    #assistant-ui-loading[data-hidden="true"] {
+    #cloud-ui-loading[data-hidden="true"] {
       opacity: 0;
       pointer-events: none;
     }
-    .assistant-ui-loading-center {
+    .cloud-ui-loading-center {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0 24px;
     }
-    .assistant-ui-loading-card {
+    .cloud-ui-loading-card {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 20px;
       text-align: center;
     }
-    .assistant-ui-loading-logo-wrap {
+    .cloud-ui-loading-logo-wrap {
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .assistant-ui-loading-ping {
+    .cloud-ui-loading-ping {
       position: absolute;
       width: 80px;
       height: 80px;
@@ -168,7 +168,7 @@ function getLoadingStyles() {
       background: color-mix(in srgb, var(--vscode-button-background, #388bfd) 10%, transparent);
       animation: assistantUILoadingPing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
     }
-    .assistant-ui-loading-logo-box {
+    .cloud-ui-loading-logo-box {
       position: relative;
       display: flex;
       width: 64px;
@@ -182,35 +182,35 @@ function getLoadingStyles() {
       box-shadow: 0 0 30px rgba(0,0,0,0.18);
       animation: assistantUILogoFloat 1.8s ease-in-out infinite;
     }
-    .assistant-ui-loading-logo {
+    .cloud-ui-loading-logo {
       width: 40px;
       height: 40px;
       animation: assistantUILogoGlow 1.8s ease-in-out infinite;
     }
-    .assistant-ui-loading-logo > svg {
+    .cloud-ui-loading-logo > svg {
       width: 100%;
       height: 100%;
     }
-    .assistant-ui-loading-text {
+    .cloud-ui-loading-text {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 8px;
     }
-    .assistant-ui-loading-brand {
+    .cloud-ui-loading-brand {
       color: color-mix(in srgb, var(--vscode-foreground) 90%, transparent);
       font-size: 16px;
       font-weight: 500;
       letter-spacing: 0.18em;
     }
-    .assistant-ui-loading-status {
+    .cloud-ui-loading-status {
       display: flex;
       align-items: center;
       gap: 8px;
       color: var(--vscode-descriptionForeground, color-mix(in srgb, var(--vscode-foreground) 65%, transparent));
       font-size: 13px;
     }
-    .assistant-ui-loading-spinner {
+    .cloud-ui-loading-spinner {
       width: 16px;
       height: 16px;
       border-radius: 9999px;
@@ -222,18 +222,18 @@ function getLoadingStyles() {
 }
 
 function getLoadingMarkup(logoSvg: string, loadingText = "正在初始化界面...") {
-	return /* html */ `<div id="assistant-ui-loading" role="status" aria-live="polite">
-    <div class="assistant-ui-loading-center">
-      <div class="assistant-ui-loading-card">
-        <div class="assistant-ui-loading-logo-wrap">
-          <div class="assistant-ui-loading-ping"></div>
-          <div class="assistant-ui-loading-logo-box">
-            <div class="assistant-ui-loading-logo">${logoSvg}</div>
+	return /* html */ `<div id="cloud-ui-loading" role="status" aria-live="polite">
+    <div class="cloud-ui-loading-center">
+      <div class="cloud-ui-loading-card">
+        <div class="cloud-ui-loading-logo-wrap">
+          <div class="cloud-ui-loading-ping"></div>
+          <div class="cloud-ui-loading-logo-box">
+            <div class="cloud-ui-loading-logo">${logoSvg}</div>
           </div>
         </div>
-        <div class="assistant-ui-loading-text">
-          <div class="assistant-ui-loading-brand">CoStrict</div>
-          <div class="assistant-ui-loading-status"><span class="assistant-ui-loading-spinner"></span><span>${escapeHtml(loadingText)}</span></div>
+        <div class="cloud-ui-loading-text">
+          <div class="cloud-ui-loading-brand">CoStrict</div>
+          <div class="cloud-ui-loading-status"><span class="cloud-ui-loading-spinner"></span><span>${escapeHtml(loadingText)}</span></div>
         </div>
       </div>
     </div>
@@ -328,12 +328,16 @@ export function getAssistantUIStaticHtml(
               v.postMessage({type:"fetchQuota",baseUrl:e.data.baseUrl,token:e.data.token});
             }
 
-            if (event.data?.type === "openExternal" && event.data.url) {
-              v.postMessage({ type: "openExternal", url: event.data.url });
+            if (e.data?.type === "openExternal" && e.data.url) {
+              v.postMessage({ type: "openExternal", url: e.data.url });
               return;
             }
-            if (event.data?.type === "openFile" && event.data.path) {
-              v.postMessage({ type: "openFile", path: event.data.path });
+            if (e.data?.type === "openFile" && e.data.path) {
+              v.postMessage({ type: "openFile", path: e.data.path });
+              return;
+            }
+            if (e.data?.type === "executeCommand" && e.data.command) {
+              v.postMessage({ type: "executeCommand", command: e.data.command });
               return;
             }
           });
@@ -378,7 +382,7 @@ export function getAssistantUIIframeHtml(
 	const diagnosticsStyle = debug ? "" : "display: none;"
 	const diagnosticsScript = debug
 		? `
-    const diagnostics = document.getElementById("assistant-ui-diagnostics");
+    const diagnostics = document.getElementById("cloud-ui-diagnostics");
     const renderDiagnostics = (lines) => {
       diagnostics.textContent = lines.join("
 ");
@@ -422,13 +426,13 @@ export function getAssistantUIIframeHtml(
   <style>
     html, body { width: 100%; height: 100%; margin: 0; padding: 0; border: 0; }
     body { position: relative; overflow: hidden; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); display: flex; flex-direction: column; }
-    #assistant-ui-diagnostics { box-sizing: border-box; border-bottom: 1px solid var(--vscode-panel-border, #333); color: var(--vscode-descriptionForeground, #aaa); font: 11px/1.4 var(--vscode-font-family, sans-serif); padding: 6px 8px; white-space: pre-wrap; word-break: break-all; ${diagnosticsStyle} }
+    #cloud-ui-diagnostics { box-sizing: border-box; border-bottom: 1px solid var(--vscode-panel-border, #333); color: var(--vscode-descriptionForeground, #aaa); font: 11px/1.4 var(--vscode-font-family, sans-serif); padding: 6px 8px; white-space: pre-wrap; word-break: break-all; ${diagnosticsStyle} }
     iframe { width: 100%; flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; border: 0; }
     ${getLoadingStyles()}
   </style>
 </head>
 <body>
-  <div id="assistant-ui-diagnostics">Assistant UI diagnostics: checking cs-cloud...</div>
+  <div id="cloud-ui-diagnostics">Assistant UI diagnostics: checking cs-cloud...</div>
   ${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Cloud...")}
   <script nonce="${nonce}">
     window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)};
@@ -438,13 +442,13 @@ export function getAssistantUIIframeHtml(
     window.__ASSISTANT_UI_FRAME_URL__ = ${JSON.stringify(frameUrl)};
     window.__ASSISTANT_UI_THEME__ = ${JSON.stringify(getAssistantUITheme())};
     window.__ASSISTANT_UI_HIDE_LOADING__ = function () {
-      const loading = document.getElementById("assistant-ui-loading");
+      const loading = document.getElementById("cloud-ui-loading");
       if (!loading) return;
       loading.setAttribute("data-hidden", "true");
       setTimeout(function () { loading.remove(); }, 180);
     };
     window.addEventListener("DOMContentLoaded", function () {
-      const frame = document.getElementById("assistant-ui-frame");
+      const frame = document.getElementById("cloud-frame");
       if (frame) {
         frame.addEventListener("load", function () {
           window.__ASSISTANT_UI_HIDE_LOADING__();
@@ -457,7 +461,7 @@ export function getAssistantUIIframeHtml(
     });
     const vscodeApi = acquireVsCodeApi();
     window.addEventListener("message", function (event) {
-      const frame = document.getElementById("assistant-ui-frame");
+      const frame = document.getElementById("cloud-frame");
 
       // 来自 iframe 的消息：转发给 VS Code
       if (event.source === frame?.contentWindow) {
@@ -480,6 +484,10 @@ export function getAssistantUIIframeHtml(
           vscodeApi.postMessage({ type: "openFile", path: event.data.path });
           return;
         }
+        if (event.data?.type === "executeCommand" && event.data.command) {
+          vscodeApi.postMessage({ type: "executeCommand", command: event.data.command });
+          return;
+        }
         return;
       }
 
@@ -497,7 +505,7 @@ export function getAssistantUIIframeHtml(
       }
     });
   </script>
-  <iframe id="assistant-ui-frame" src="${escapeHtml(frameUrl)}" title="CoStrict Assistant UI"></iframe>
+  <iframe id="cloud-frame" src="${escapeHtml(frameUrl)}" title="CoStrict Assistant UI"></iframe>
 </body>
 </html>`
 }

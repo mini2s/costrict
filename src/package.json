@@ -96,7 +96,7 @@
 					"id": "costrict.AssistantUISidebarProvider",
 					"name": "%views.sidebar.name%",
 					"icon": "assets/images/shenma_robot_logo_big.png",
-					"when": "costrict.uiMode == assistant-ui"
+					"when": "costrict.uiMode == cloud"
 				}
 			]
 		},
@@ -745,7 +745,7 @@
 					"type": "string",
 					"enum": [
 						"classic",
-						"assistant-ui"
+						"cloud"
 					],
 					"default": "classic",
 					"description": "Controls which UI mode CoStrict loads on startup. Changes apply after reloading the window."
@@ -922,7 +922,7 @@
 		"test": "vitest run",
 		"format": "prettier --write .",
 		"build:native": "cd node_modules/node-pty && npx node-gyp rebuild",
-		"assistant-ui:build-static": "node scripts/build-assistant-ui-static.mjs",
+		"cloud:build-static": "node scripts/build-assistant-ui-static.mjs",
 		"bundle": "node esbuild.mjs",
 		"vscode:prepublish": "node ../scripts/download-bundled-skills.mjs && pnpm assistant-ui:build-static && pnpm bundle --production",
 		"vsix": "mkdirp ../bin && vsce package --no-dependencies --out ../bin",

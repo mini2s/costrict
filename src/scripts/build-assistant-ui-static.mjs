@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"
 import * as path from "node:path"
@@ -28,7 +29,7 @@ function copyDirSync(src, dest) {
 }
 
 function run(command, args, cwd, env = {}) {
-	console.log(`[assistant-ui] ${command} ${args.join(" ")} (cwd: ${cwd})`)
+	console.log(`[cloud-ui] ${command} ${args.join(" ")} (cwd: ${cwd})`)
 	execFileSync(command, args, {
 		cwd,
 		stdio: "inherit",
@@ -52,4 +53,4 @@ fs.rmSync(extensionAssistantUiOut, { recursive: true, force: true })
 fs.mkdirSync(path.dirname(extensionAssistantUiOut), { recursive: true })
 copyDirSync(withOpencodeOut, extensionAssistantUiOut)
 
-console.log(`[assistant-ui] Synced fresh with-opencode static export to ${extensionAssistantUiOut}`)
+console.log(`[cloud-ui] Synced fresh with-opencode static export to ${extensionAssistantUiOut}`)

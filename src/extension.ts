@@ -228,7 +228,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// ClineProvider is always created for API compatibility and registered
 	// as a sidebar provider. It is hidden by the "when" clause in package.json
-	// when the mode is assistant-ui.
+	// when the mode is cloud-ui.
 	// const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy, mdmService)
 	const provider = new ClineProvider(context, outputChannel, "sidebar", contextProxy)
 
@@ -248,9 +248,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Pre-start cs-cloud daemon when in assistant-ui mode so it's ready by the
+	// Pre-start cs-cloud daemon when in cloud mode so it's ready by the
 	// time the user opens the sidebar.
-	if (uiMode === "assistant-ui") {
+	if (uiMode === "cloud") {
 		const csCloudService = new CsCloudService(outputChannel)
 		context.subscriptions.push(csCloudService)
 		void csCloudService.ensureStarted().catch((err) => {
