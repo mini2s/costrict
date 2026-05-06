@@ -2,6 +2,12 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [2.7.8]
+
+- Add Deepseek v4 model support
+- Add Kimi K2.6 model support for Moonshot provider
+- Update OpenAI Codex GPT-5.5 default configurations
+
 ## [2.7.7]
 
 - Add build time display to About section
