@@ -162,7 +162,13 @@ export const getCommandsMap = ({
 
 		return openClineInNewTab({ context, outputChannel, taskId: "" })
 	},
-	openNewButtonClicked: () => {
+	openNewButtonClicked: async () => {
+		const uiMode = await vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
+		if (uiMode === "cloud") {
+			vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+
+			return
+		}
 		vscode.commands.executeCommand(`${Package.commandIDPrefix}.SidebarProvider.focus`)
 	},
 	openInNewTab: (taskId?: string) => openClineInNewTab({ context, outputChannel, taskId }),
