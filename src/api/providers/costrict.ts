@@ -151,7 +151,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 
 		// Cache boolean calculation results
 		const isAzureAiInference = this._isAzureAiInference(modelUrl)
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isDeepseekReasoner = modelId.includes("deepseek-reasoner") || modelId.includes("deepseek-v4")
 		const isMiniMax = modelId.toLowerCase().includes("minimax")
 		const deepseekReasoner = isDeepseekReasoner || enabledR1Format
 		const isGrokXAI = this._isGrokXAI(this.baseURL)
