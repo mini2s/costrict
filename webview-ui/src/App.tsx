@@ -13,25 +13,29 @@ import { telemetryClient } from "./utils/TelemetryClient"
 import { initializeSourceMaps, exposeSourceMapsForDebugging } from "./utils/sourceMapInitializer"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView, { ChatViewRef } from "./components/chat/ChatView"
-import HistoryView from "./components/history/HistoryView"
-import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
-import CodeReviewPage from "./components/code-review"
-import CodeReviewHistoryView from "./components/code-review/CodeReviewHistoryView"
-import CostrictCliView from "./components/costrict-cli/CostrictCliView"
 import LoadingView from "./components/LoadingView"
-import WelcomeView from "./components/welcome/WelcomeViewProvider"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 import { CheckpointRestoreDialog } from "./components/chat/CheckpointRestoreDialog"
 import { DeleteMessageDialog, EditMessageDialog } from "./components/chat/MessageModificationConfirmationDialog"
 import ErrorBoundary from "./components/ErrorBoundary"
+import type { SettingsViewRef } from "./components/settings/SettingsView"
+
+const LazyHistoryView = React.lazy(() => import("./components/history/HistoryView"))
+const LazySettingsView = React.lazy(() => import("./components/settings/SettingsView"))
+const LazyCodeReviewPage = React.lazy(() => import("./components/code-review"))
+const LazyCodeReviewHistoryView = React.lazy(() => import("./components/code-review/CodeReviewHistoryView"))
+const LazyCostrictCliView = React.lazy(() => import("./components/costrict-cli/CostrictCliView"))
+const LazyWelcomeView = React.lazy(() => import("./components/welcome/WelcomeViewProvider"))
+const LazyCostrictAccountView = React.lazy(() =>
+	import("./components/cloud/CostrictAccountView").then((m) => ({ default: m.CostrictAccountView })),
+)
 // import { WorktreesView } from "./components/worktrees"
 // import { CloudView } from "./components/cloud/CloudView"
 import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonInteractiveClick"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY, StandardTooltip } from "./components/ui/standard-tooltip"
-import { CostrictAccountView } from "./components/cloud/CostrictAccountView"
-import { TabContent, TabList, TabTrigger } from "./components/common/Tab"
 import { cn } from "./lib/utils"
+import { TabContent, TabList, TabTrigger } from "./components/common/Tab"
 import { ReauthConfirmationDialog } from "./components/chat/ReauthConfirmationDialog"
 import { useTranslation } from "react-i18next"
 import { EXPERIMENT_IDS } from "@roo/experiments"
@@ -380,12 +384,20 @@ const App = () => {
 	// Do not conditionally load ChatView, it's expensive and there's state we
 	// don't want to lose (user input, disableInput, askResponse promise, etc.)
 	return showWelcome ? (
-		<WelcomeView />
+		<React.Suspense fallback={<LoadingView />}>
+			<LazyWelcomeView />
+		</React.Suspense>
 	) : (
 		<>
-			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
+			{tab === "history" && (
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyHistoryView onDone={() => switchTab("chat")} />
+				</React.Suspense>
+			)}
 			{tab === "settings" && (
-				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
+				<React.Suspense fallback={<LoadingView />}>
+					<LazySettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
+				</React.Suspense>
 			)}
 			{/* {tab === "marketplace" && (
 				<MarketplaceView
@@ -403,10 +415,15 @@ const App = () => {
 				/>
 			)} */}
 			{tab === "costrict-account" && (
-				<CostrictAccountView apiConfiguration={apiConfiguration} onDone={() => switchTab("chat")} />
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyCostrictAccountView apiConfiguration={apiConfiguration} onDone={() => switchTab("chat")} />
+				</React.Suspense>
 			)}
-			{/* {tab === "worktrees" && <WorktreesView onDone={() => switchTab("chat")} />} */}
-			{tab === "codeReviewHistory" && <CodeReviewHistoryView onDone={() => switchTab("codeReview")} />}
+			{tab === "codeReviewHistory" && (
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyCodeReviewHistoryView onDone={() => switchTab("codeReview")} />
+				</React.Suspense>
+			)}
 			<div className={`${isChatTab ? "fixed inset-0 flex flex-col" : "hidden"}`}>
 				<div className={`header flex items-center justify-between px-5 ${isChatTab ? "" : "hidden"}`}>
 					<TabList value={tab} onValueChange={(val) => switchTab(val as Tab)} className="header-left h-7">
@@ -498,17 +515,21 @@ const App = () => {
 						/>
 					)}
 					{tab === "codeReview" && (
-						<CodeReviewPage
-							isHidden={tab !== "codeReview"}
-							onIssueClick={onIssueClick}
-							onTaskCancel={onTaskCancel}
-							onNavigateToWelcome={(fn) => {
-								codeReviewNavigateRef.current = fn
-							}}
-						/>
+						<React.Suspense fallback={<LoadingView />}>
+							<LazyCodeReviewPage
+								isHidden={tab !== "codeReview"}
+								onIssueClick={onIssueClick}
+								onTaskCancel={onTaskCancel}
+								onNavigateToWelcome={(fn: () => void) => {
+									codeReviewNavigateRef.current = fn
+								}}
+							/>
+						</React.Suspense>
 					)}
 					{apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
-						<CostrictCliView isHidden={tab !== "cs-cli"} />
+						<React.Suspense fallback={<LoadingView />}>
+							<LazyCostrictCliView isHidden={tab !== "cs-cli"} />
+						</React.Suspense>
 					)}
 				</TabContent>
 			</div>

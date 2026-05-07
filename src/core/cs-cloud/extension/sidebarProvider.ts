@@ -64,7 +64,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					vscode.commands.executeCommand(message.command)
 				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
-					console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)
+					// console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)
 					try {
 						const response = await fetch(`${message.baseUrl}/quota-manager/api/v1/quota`, {
 							headers: {
@@ -72,10 +72,10 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 								"Content-Type": "application/json",
 							},
 						})
-						console.log("[sidebarProvider] quota response status", response.status)
+						// console.log("[sidebarProvider] quota response status", response.status)
 						if (response.ok) {
 							const json = await response.json()
-							console.log("[sidebarProvider] posting quotaResult", json?.data)
+							// console.log("[sidebarProvider] posting quotaResult", json?.data)
 							webviewView.webview.postMessage({ type: "quotaResult", data: json?.data ?? null })
 						} else {
 							webviewView.webview.postMessage({ type: "quotaResult", data: null })

@@ -220,8 +220,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	// }
 
 	// Determine UI mode and set context key for view visibility.
-	// Both providers are registered unconditionally so that switching
-	// modes does not require a window reload.
 	const uiMode = getConfiguredUiMode()
 	vscode.commands.executeCommand("setContext", "costrict.uiMode", uiMode)
 	outputChannel.appendLine(`[Extension] UI mode: ${uiMode}`)
@@ -238,19 +236,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// AssistantUISidebarProvider is also registered unconditionally.
-	// It is hidden by the "when" clause in package.json when the mode is classic.
-	const assistantProvider = new AssistantUISidebarProvider(context, outputChannel)
-
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(AssistantUISidebarProvider.viewType, assistantProvider, {
-			webviewOptions: { retainContextWhenHidden: true },
-		}),
-	)
-
-	// Pre-start cs-cloud daemon when in cloud mode so it's ready by the
-	// time the user opens the sidebar.
+	// Only register AssistantUISidebarProvider when in cloud mode to avoid
+	// unnecessary object allocation and cs-cloud service initialization.
 	if (uiMode === "cloud") {
+		const assistantProvider = new AssistantUISidebarProvider(context, outputChannel)
+
+		context.subscriptions.push(
+			vscode.window.registerWebviewViewProvider(AssistantUISidebarProvider.viewType, assistantProvider, {
+				webviewOptions: { retainContextWhenHidden: true },
+			}),
+		)
+
+		// Pre-start cs-cloud daemon when in cloud mode so it's ready by the
+		// time the user opens the sidebar.
 		const csCloudService = new CsCloudService(outputChannel)
 		context.subscriptions.push(csCloudService)
 		void csCloudService.ensureStarted().catch((err) => {
