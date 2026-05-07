@@ -448,6 +448,11 @@ const App = () => {
 									className="codicon codicon-git-branch-create cursor-pointer p-0.5"
 									onClick={() => switchTab("worktrees")}></i>
 							</StandardTooltip> */}
+							<StandardTooltip content="切换到 Cloud UI">
+								<i
+									className="codicon codicon-cloud cursor-pointer p-0.5"
+									onClick={() => vscode.postMessage({ type: "switchUiMode" })}></i>
+							</StandardTooltip>
 							<StandardTooltip content={t("history:history")}>
 								<i
 									className="codicon codicon-history cursor-pointer p-0.5"

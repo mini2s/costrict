@@ -220,6 +220,31 @@ export const getCommandsMap = ({
 
 		void vscode.window.showInformationMessage(`Switched to ${selection.label}`)
 	},
+	toggleUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const targetMode: UiMode = currentMode === "classic" ? "cloud" : "classic"
+		const targetLabel = targetMode === "classic" ? "Classic Mode" : "Cloud Mode"
+
+		await vscode.workspace
+			.getConfiguration(Package.commandIDPrefix)
+			.update("uiMode", targetMode, vscode.ConfigurationTarget.Global)
+
+		// Update the context key so that VSCode re-evaluates the "when" clauses
+		// in package.json and shows/hides the correct sidebar view.
+		await vscode.commands.executeCommand("setContext", "costrict.uiMode", targetMode)
+
+		// Focus the newly activated sidebar view.
+		if (targetMode === "cloud") {
+			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+		} else {
+			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+		}
+
+		void vscode.window.showInformationMessage(`Switched to ${targetLabel}`)
+
+		// Reload window to apply the new UI mode
+		await vscode.commands.executeCommand("workbench.action.reloadWindow")
+	},
 	historyButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 

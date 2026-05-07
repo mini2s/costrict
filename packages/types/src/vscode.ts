@@ -49,6 +49,7 @@ export const commandIds = [
 	"cloudButtonClicked",
 	"settingsButtonClicked",
 	"switchUiMode",
+	"toggleUiMode",
 
 	"openInNewTab",
 
