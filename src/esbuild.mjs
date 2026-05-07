@@ -192,8 +192,8 @@ async function main() {
 						buildDir,
 					)
 
-					const assistantUiOutSrc = path.join(srcDir, "assets", "assistant-ui", "out")
-					const assistantUiOutDest = path.join(distDir, "assets", "assistant-ui", "out")
+					const assistantUiOutSrc = path.join(srcDir, "assets", "cs-cloud-ui", "out")
+					const assistantUiOutDest = path.join(distDir, "assets", "cs-cloud-ui", "out")
 					if (fs.existsSync(assistantUiOutSrc)) {
 						if (fs.existsSync(assistantUiOutDest)) {
 							fs.rmSync(assistantUiOutDest, { recursive: true, force: true })

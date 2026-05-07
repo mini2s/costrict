@@ -152,9 +152,9 @@ describe("AssistantUIPanel", () => {
 			}),
 		}
 		const html = '<script>(()=>{i.p="/_next/",i.f.j=function(){}})()</script>'
-		const rewritten = rewriteWebpackPublicPath(html, webview as never, "/extension/assets/assistant-ui/out")
+		const rewritten = rewriteWebpackPublicPath(html, webview as never, "/extension/assets/cs-cloud-ui/out")
 
-		expect(rewritten).toContain('i.p="vscode-resource:/extension/assets/assistant-ui/out/_next/"')
+		expect(rewritten).toContain('i.p="vscode-resource:/extension/assets/cs-cloud-ui/out/_next/"')
 		expect(rewritten).not.toContain('i.p="/_next/"')
 	})
 
@@ -165,16 +165,16 @@ describe("AssistantUIPanel", () => {
 			}),
 		}
 		const html = '<script>(()=>{i.p="_next/",i.f.j=function(){}})()</script>'
-		const rewritten = rewriteWebpackPublicPath(html, webview as never, "/extension/dist/assets/assistant-ui/out")
+		const rewritten = rewriteWebpackPublicPath(html, webview as never, "/extension/dist/assets/cs-cloud-ui/out")
 
-		expect(rewritten).toContain('i.p="vscode-resource:/extension/dist/assets/assistant-ui/out/_next/"')
+		expect(rewritten).toContain('i.p="vscode-resource:/extension/dist/assets/cs-cloud-ui/out/_next/"')
 		expect(rewritten).not.toContain('i.p="_next/"')
 	})
 
-	it("prefers packaged dist assistant-ui static export when source assets are absent", () => {
-		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "assistant-ui-static-"))
+	it("prefers packaged dist cs-cloud-ui static export when source assets are absent", () => {
+		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cs-cloud-ui-static-"))
 		try {
-			const distOutDir = path.join(extensionRoot, "dist", "assets", "assistant-ui", "out")
+			const distOutDir = path.join(extensionRoot, "dist", "assets", "cs-cloud-ui", "out")
 			fs.mkdirSync(distOutDir, { recursive: true })
 			fs.writeFileSync(path.join(distOutDir, "index.html"), "<!DOCTYPE html>")
 
@@ -194,20 +194,20 @@ describe("AssistantUIPanel", () => {
 		}
 		const html =
 			'<link rel="preload" as="image" href="/costrict/logo.png"><link href="/_next/static/app.css"><script src="/_next/static/app.js"></script><script>self.__next_f.push(["/_next/static/in-rsc.js"])</script>'
-		const rewritten = rewriteStaticAssetUrls(html, webview as never, "/extension/assets/assistant-ui/out")
+		const rewritten = rewriteStaticAssetUrls(html, webview as never, "/extension/assets/cs-cloud-ui/out")
 
-		expect(rewritten).toContain('href="vscode-resource:/extension/assets/assistant-ui/out/costrict/logo.png"')
-		expect(rewritten).toContain('href="vscode-resource:/extension/assets/assistant-ui/out/_next/static/app.css"')
-		expect(rewritten).toContain('src="vscode-resource:/extension/assets/assistant-ui/out/_next/static/app.js"')
+		expect(rewritten).toContain('href="vscode-resource:/extension/assets/cs-cloud-ui/out/costrict/logo.png"')
+		expect(rewritten).toContain('href="vscode-resource:/extension/assets/cs-cloud-ui/out/_next/static/app.css"')
+		expect(rewritten).toContain('src="vscode-resource:/extension/assets/cs-cloud-ui/out/_next/static/app.js"')
 		expect(rewritten).toContain(
-			'self.__next_f.push(["vscode-resource:/extension/assets/assistant-ui/out/_next/static/in-rsc.js"])',
+			'self.__next_f.push(["vscode-resource:/extension/assets/cs-cloud-ui/out/_next/static/in-rsc.js"])',
 		)
 	})
 
 	it("generates static HTML with connect-src CSP and rewritten public logo asset", () => {
-		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "assistant-ui-html-"))
+		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cs-cloud-ui-html-"))
 		try {
-			const outDir = path.join(extensionRoot, "assets", "assistant-ui", "out")
+			const outDir = path.join(extensionRoot, "assets", "cs-cloud-ui", "out")
 			fs.mkdirSync(path.join(outDir, "costrict"), { recursive: true })
 			fs.writeFileSync(
 				path.join(outDir, "index.html"),

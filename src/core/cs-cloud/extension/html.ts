@@ -28,8 +28,8 @@ export function buildAssistantUIFrameUrl(
 
 export function getAssistantUIStaticOutDir(context: vscode.ExtensionContext) {
 	const candidates = [
-		path.join(context.extensionUri.fsPath, "assets", "assistant-ui", "out"),
-		path.join(context.extensionUri.fsPath, "dist", "assets", "assistant-ui", "out"),
+		path.join(context.extensionUri.fsPath, "assets", "cs-cloud-ui", "out"),
+		path.join(context.extensionUri.fsPath, "dist", "assets", "cs-cloud-ui", "out"),
 	]
 	return candidates.find((candidate) => fs.existsSync(path.join(candidate, "index.html"))) ?? candidates[0]
 }

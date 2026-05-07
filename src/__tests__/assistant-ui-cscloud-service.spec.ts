@@ -68,7 +68,7 @@ describe("CsCloudService", () => {
 	it("returns a ready and OpenCode-compatible local base URL", async () => {
 		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
 		nock("http://127.0.0.1:45489")
-			.get("/api/v1/experimental/session")
+			.get("/api/v1/conversations")
 			.query({ roots: "true", archived: "true" })
 			.reply(200, [])
 
@@ -80,7 +80,7 @@ describe("CsCloudService", () => {
 	it("fails clearly when an existing daemon lacks OpenCode-compatible routes", async () => {
 		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
 		nock("http://127.0.0.1:45489")
-			.get("/api/v1/experimental/session")
+			.get("/api/v1/conversations")
 			.query({ roots: "true", archived: "true" })
 			.reply(404, "404 page not found")
 
@@ -95,7 +95,7 @@ describe("CsCloudService", () => {
 		)
 		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
 		nock("http://127.0.0.1:55555")
-			.get("/api/v1/experimental/session")
+			.get("/api/v1/conversations")
 			.query({ roots: "true", archived: "true" })
 			.reply(200, [])
 
@@ -121,7 +121,7 @@ describe("CsCloudService", () => {
 			.persist()
 
 		nock("http://127.0.0.1:55555")
-			.get("/api/v1/experimental/session")
+			.get("/api/v1/conversations")
 			.query({ roots: "true", archived: "true" })
 			.reply(200, [])
 
@@ -135,7 +135,7 @@ describe("CsCloudService", () => {
 		mockExecReturn("")
 		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
 		nock("http://127.0.0.1:45489")
-			.get("/api/v1/experimental/session")
+			.get("/api/v1/conversations")
 			.query({ roots: "true", archived: "true" })
 			.reply(200, [])
 
