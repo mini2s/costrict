@@ -214,6 +214,15 @@ export class ClineProvider
 	private statePushFrameId: ReturnType<typeof setTimeout> | null = null
 	private static readonly STATE_PUSH_BATCH_MS = 16 // 1 frame at 60fps
 
+	private pendingStatePushWithoutHistory: boolean = false
+	private statePushWithoutHistoryFrameId: ReturnType<typeof setTimeout> | null = null
+
+	private authCache: {
+		claudeCode?: { value: boolean; ts: number }
+		openAiCodex?: { value: boolean; ts: number }
+	} = {}
+	private static readonly AUTH_CACHE_TTL_MS = 30_000
+
 	public isViewLaunched = false
 	public settingsImportedAt?: number
 	public readonly latestAnnouncementId = "apr-2026-v3.53.0-community-handoff-gpt55-opus47" // v3.53.0 Community handoff, GPT-5.5, Claude Opus 4.7, checkpoint navigation
@@ -253,8 +262,6 @@ export class ClineProvider
 		// Register this provider with the telemetry service to enable it to add
 		// properties like mode and provider.
 		TelemetryService.instance.setProvider(this)
-
-		this._workspaceTracker = new WorkspaceTracker(this)
 
 		this.providerSettingsManager = new ProviderSettingsManager(this.context)
 
@@ -1069,6 +1076,10 @@ export class ClineProvider
 		this.view = webviewView
 		const inTabMode = "onDidChangeViewState" in webviewView
 
+		if (!this._workspaceTracker) {
+			this._workspaceTracker = new WorkspaceTracker(this)
+		}
+
 		if (inTabMode) {
 			setPanel(webviewView, "tab")
 		} else if ("onDidChangeVisibility" in webviewView) {
@@ -1530,7 +1541,7 @@ export class ClineProvider
 			"default-src 'none'",
 			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
-			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data:`,
+			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com data: blob:`,
 			`media-src ${webview.cspSource}`,
 			`script-src 'unsafe-eval' ${webview.cspSource} https://* https://*.posthog.com http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src ${webview.cspSource} ${openRouterDomain} https://* https://*.posthog.com ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
@@ -1595,6 +1606,7 @@ export class ClineProvider
 		])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
+		const webviewBuildUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "build"])
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -1624,7 +1636,8 @@ export class ClineProvider
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com 'strict-dynamic'; connect-src ${webview.cspSource} ${openRouterDomain} https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com;">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data: blob:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com 'strict-dynamic'; connect-src ${webview.cspSource} ${openRouterDomain} https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com;">
+            <base href="${webviewBuildUri}/">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
 			<script nonce="${nonce}">
@@ -2450,19 +2463,33 @@ export class ClineProvider
 	 *   `taskHistoryUpdated` / `taskHistoryItemUpdated`.
 	 */
 	async postStateToWebviewWithoutTaskHistory(): Promise<void> {
-		// Suppress state pushes while the cs-cli tab is active to save resources
 		if (this._activeTab === "cs-cli") {
 			return
 		}
-		const state = await this.buildStateForWebview({ includeTaskHistory: false })
-		this.clineMessagesSeq++
-		state.clineMessagesSeq = this.clineMessagesSeq
-		this.postMessageToWebview({ type: "state", state })
 
-		// // Preserve existing MDM redirect behavior
-		// if (this.mdmService?.requiresCloudAuth() && !this.checkMdmCompliance()) {
-		// 	await this.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
-		// }
+		if (this.pendingStatePushWithoutHistory) {
+			return
+		}
+
+		this.pendingStatePushWithoutHistory = true
+
+		return new Promise((resolve, reject) => {
+			this.statePushWithoutHistoryFrameId = setTimeout(async () => {
+				this.statePushWithoutHistoryFrameId = null
+
+				try {
+					const state = await this.buildStateForWebview({ includeTaskHistory: false })
+					this.clineMessagesSeq++
+					state.clineMessagesSeq = this.clineMessagesSeq
+					this.postMessageToWebview({ type: "state", state })
+					resolve()
+				} catch (error) {
+					reject(error)
+				} finally {
+					this.pendingStatePushWithoutHistory = false
+				}
+			}, ClineProvider.STATE_PUSH_BATCH_MS)
+		})
 	}
 
 	/**

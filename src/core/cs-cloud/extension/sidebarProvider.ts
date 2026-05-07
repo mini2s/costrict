@@ -1,0 +1,228 @@
+import * as vscode from "vscode"
+import * as fs from "fs"
+import * as os from "os"
+import * as path from "path"
+import { CsCloudService } from "./csCloudService"
+import { getAssistantUIConfig, type AssistantUIConfig } from "./config"
+import { getAssistantUIStaticHtml, getAssistantUIIframeHtml, getAssistantUILoadingHtml } from "./html"
+import { CostrictAuthService } from "../../costrict/auth"
+import { CostrictAuthConfig } from "../../costrict/auth/authConfig"
+
+export function getAssistantUIWorkspaceDirectory() {
+	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+}
+
+export function shouldUseAssistantUIIframe(context: vscode.ExtensionContext, config: AssistantUIConfig) {
+	return context.extensionMode === vscode.ExtensionMode.Development || config.webviewMode === "iframe"
+}
+
+export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
+	public static readonly viewType = "costrict.AssistantUISidebarProvider"
+
+	private view?: vscode.WebviewView
+	private csCloudService: CsCloudService
+	private disposables: vscode.Disposable[] = []
+
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly outputChannel: vscode.OutputChannel,
+	) {
+		this.csCloudService = new CsCloudService(outputChannel)
+		context.subscriptions.push(this.csCloudService)
+	}
+
+	async resolveWebviewView(webviewView: vscode.WebviewView) {
+		this.view = webviewView
+
+		webviewView.webview.options = {
+			enableScripts: true,
+			localResourceRoots: [this.context.extensionUri],
+		}
+
+		// Handle messages from webview (e.g. openExternal from iframe)
+		webviewView.webview.onDidReceiveMessage(
+			async (message: {
+				type: string
+				url?: string
+				path?: string
+				baseUrl?: string
+				token?: string
+				command?: string
+			}) => {
+				if (message.type === "openExternal" && message.url) {
+					vscode.env.openExternal(vscode.Uri.parse(message.url))
+				}
+				if (message.type === "openFile" && message.path) {
+					const workspaceDir = getAssistantUIWorkspaceDirectory()
+					const filePath = path.isAbsolute(message.path)
+						? message.path
+						: path.join(workspaceDir || "", message.path)
+					const uri = vscode.Uri.file(filePath)
+					vscode.commands.executeCommand("vscode.open", uri)
+				}
+				if (message.type === "executeCommand" && message.command) {
+					vscode.commands.executeCommand(message.command)
+				}
+				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
+					// console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)
+					try {
+						const response = await fetch(`${message.baseUrl}/quota-manager/api/v1/quota`, {
+							headers: {
+								Authorization: `Bearer ${message.token}`,
+								"Content-Type": "application/json",
+							},
+						})
+						// console.log("[sidebarProvider] quota response status", response.status)
+						if (response.ok) {
+							const json = await response.json()
+							// console.log("[sidebarProvider] posting quotaResult", json?.data)
+							webviewView.webview.postMessage({ type: "quotaResult", data: json?.data ?? null })
+						} else {
+							webviewView.webview.postMessage({ type: "quotaResult", data: null })
+						}
+					} catch (err) {
+						console.error("[sidebarProvider] quota fetch failed", err)
+						webviewView.webview.postMessage({ type: "quotaResult", data: null })
+					}
+				}
+			},
+			null,
+			this.disposables,
+		)
+
+		const config = getAssistantUIConfig()
+		if (!config.enabled) {
+			webviewView.webview.html = this.getDisabledHtml()
+			return
+		}
+
+		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
+
+		try {
+			const workspaceDirectory = getAssistantUIWorkspaceDirectory()
+			const baseUrl = await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Starting CoStrict Cloud",
+					cancellable: false,
+				},
+				() => this.csCloudService.ensureStarted(),
+			)
+			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
+
+			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
+			if (!accessToken) {
+				try {
+					const authFilePath = path.join(os.homedir(), ".costrict", "share", "auth.json")
+					if (fs.existsSync(authFilePath)) {
+						const content = fs.readFileSync(authFilePath, "utf-8")
+						const data = JSON.parse(content)
+						if (data?.access_token) {
+							accessToken = data.access_token
+						}
+					}
+				} catch (error) {
+					console.error("Failed to read fallback auth file:", error)
+				}
+			}
+			const costrictWebUrl = CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()
+			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
+			if (shouldUseAssistantUIIframe(this.context, config)) {
+				webviewView.webview.html = getAssistantUIIframeHtml(
+					webviewView.webview,
+					this.context,
+					baseUrl,
+					config.webUrl,
+					workspaceDirectory,
+					accessToken ?? undefined,
+					config.debug,
+					costrictWebUrl,
+				)
+			} else {
+				webviewView.webview.html = getAssistantUIStaticHtml(
+					webviewView.webview,
+					this.context,
+					baseUrl,
+					workspaceDirectory,
+					accessToken ?? undefined,
+					costrictWebUrl,
+				)
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			this.outputChannel.appendLine(`[AssistantUI] ${message}`)
+			webviewView.webview.html = this.getErrorHtml(message)
+		}
+
+		// Handle VS Code theme changes
+		vscode.window.onDidChangeActiveColorTheme(
+			(e) => {
+				const theme = e.kind === 1 || e.kind === 4 ? "light" : "dark"
+				webviewView.webview.postMessage({ type: "theme", theme })
+			},
+			null,
+			this.disposables,
+		)
+
+		// Handle visibility changes
+		webviewView.onDidChangeVisibility(
+			() => {
+				if (webviewView.visible) {
+					// Optional: refresh cs-cloud health or re-fetch state
+				}
+			},
+			null,
+			this.disposables,
+		)
+
+		// Handle dispose
+		webviewView.onDidDispose(
+			() => {
+				this.view = undefined
+				this.dispose()
+			},
+			null,
+			this.disposables,
+		)
+	}
+
+	private getDisabledHtml(): string {
+		return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); }
+  </style>
+</head>
+<body>
+  <p>CoStrict Assistant UI is disabled. Enable it via <code>costrict.assistantUI.enabled</code>.</p>
+</body>
+</html>`
+	}
+
+	private getErrorHtml(message: string): string {
+		return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-errorForeground); }
+    pre { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h3>Failed to load CoStrict Cloud</h3>
+  <pre>${message.replace(/</g, "&lt;")}</pre>
+</body>
+</html>`
+	}
+
+	dispose() {
+		while (this.disposables.length) {
+			this.disposables.pop()?.dispose()
+		}
+	}
+}

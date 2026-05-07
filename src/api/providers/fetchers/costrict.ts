@@ -37,7 +37,7 @@ export async function getCostrictModels(baseUrl?: string, apiKey?: string, openA
 			config["headers"] = headers
 		}
 
-		const response = await axios.get(`${baseUrl}/ai-gateway/api/v1/models`, config)
+		const response = await axios.get(`${baseUrl.replace(/\/api\/v1$/, "")}/ai-gateway/api/v1/models`, config)
 		const fullResponseData = response.data?.data || []
 		return fullResponseData as Array<ICostrictModelResponseData>
 	} catch (error) {
@@ -75,7 +75,7 @@ export async function fetchCostrictQuotaInfo(baseUrl?: string, apiKey?: string):
 		if (Object.keys(headers).length > 0) {
 			config["headers"] = headers
 		}
-		const response = await axios.get(`${baseUrl}/quota-manager/api/v1/quota`, config)
+		const response = await axios.get(`${baseUrl.replace(/\/api\/v1$/, "")}/quota-manager/api/v1/quota`, config)
 
 		return response?.data?.data as QuotaInfo
 	} catch (error) {
@@ -113,7 +113,10 @@ export async function fetchCostrictInviteCode(baseUrl?: string, apiKey?: string)
 		if (Object.keys(headers).length > 0) {
 			config["headers"] = headers
 		}
-		const response = await axios.get(`${baseUrl}/oidc-auth/api/v1/manager/invite-code`, config)
+		const response = await axios.get(
+			`${baseUrl.replace(/\/api\/v1$/, "")}/oidc-auth/api/v1/manager/invite-code`,
+			config,
+		)
 
 		return response?.data?.data as InviteCodeInfo
 	} catch (error) {

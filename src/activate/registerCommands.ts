@@ -32,6 +32,42 @@ interface ProcessedResource {
 	content: string
 }
 
+type UiMode = "classic" | "cloud"
+
+const uiModeQuickPickItems: Array<{
+	label: string
+	description: string
+	value: UiMode
+}> = [
+	{
+		label: "Classic Mode",
+		description: "Use the current CoStrict UI and logic",
+		value: "classic",
+	},
+	{
+		label: "Cloud Mode",
+		description: "Use the Cloud UI on next launch",
+		value: "cloud",
+	},
+]
+
+export const getConfiguredUiMode = (): UiMode => {
+	const configured = vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
+	return configured === "cloud" ? "cloud" : "classic"
+}
+
+const promptToReloadForUiModeChange = async () => {
+	const reloadNow = await vscode.window.showInformationMessage(
+		"UI mode updated. Reload Window to apply.",
+		"Reload Now",
+		"Later",
+	)
+
+	if (reloadNow === "Reload Now") {
+		await vscode.commands.executeCommand("workbench.action.reloadWindow")
+	}
+}
+
 /**
  * Helper to get the visible ClineProvider instance or log if not found.
  */
@@ -126,7 +162,13 @@ export const getCommandsMap = ({
 
 		return openClineInNewTab({ context, outputChannel, taskId: "" })
 	},
-	openNewButtonClicked: () => {
+	openNewButtonClicked: async () => {
+		const uiMode = await vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
+		if (uiMode === "cloud") {
+			vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+
+			return
+		}
 		vscode.commands.executeCommand(`${Package.commandIDPrefix}.SidebarProvider.focus`)
 	},
 	openInNewTab: (taskId?: string) => openClineInNewTab({ context, outputChannel, taskId }),
@@ -142,6 +184,66 @@ export const getCommandsMap = ({
 		visibleProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		// Also explicitly post the visibility message to trigger scroll reliably
 		visibleProvider.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+	},
+	switchUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const selection = await vscode.window.showQuickPick(
+			uiModeQuickPickItems.map((item) => ({
+				...item,
+				detail: item.value === currentMode ? "Current mode" : undefined,
+			})),
+			{
+				title: "Switch CoStrict UI Mode",
+				placeHolder: "Choose which UI mode to switch to",
+				ignoreFocusOut: true,
+			},
+		)
+
+		if (!selection || selection.value === currentMode) {
+			return
+		}
+
+		await vscode.workspace
+			.getConfiguration(Package.commandIDPrefix)
+			.update("uiMode", selection.value, vscode.ConfigurationTarget.Global)
+
+		// Update the context key so that VSCode re-evaluates the "when" clauses
+		// in package.json and shows/hides the correct sidebar view.
+		await vscode.commands.executeCommand("setContext", "costrict.uiMode", selection.value)
+
+		// Focus the newly activated sidebar view.
+		if (selection.value === "cloud") {
+			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+		} else {
+			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+		}
+
+		void vscode.window.showInformationMessage(`Switched to ${selection.label}`)
+	},
+	toggleUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const targetMode: UiMode = currentMode === "classic" ? "cloud" : "classic"
+		const targetLabel = targetMode === "classic" ? "Classic Mode" : "Cloud Mode"
+
+		await vscode.workspace
+			.getConfiguration(Package.commandIDPrefix)
+			.update("uiMode", targetMode, vscode.ConfigurationTarget.Global)
+
+		// Update the context key so that VSCode re-evaluates the "when" clauses
+		// in package.json and shows/hides the correct sidebar view.
+		await vscode.commands.executeCommand("setContext", "costrict.uiMode", targetMode)
+
+		// Focus the newly activated sidebar view.
+		if (targetMode === "cloud") {
+			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+		} else {
+			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+		}
+
+		void vscode.window.showInformationMessage(`Switched to ${targetLabel}`)
+
+		// Reload window to apply the new UI mode
+		await vscode.commands.executeCommand("workbench.action.reloadWindow")
 	},
 	historyButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)

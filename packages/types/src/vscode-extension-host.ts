@@ -488,6 +488,7 @@ export interface WebviewMessage {
 		| "fetchCostrictQuotaInfo"
 		| "costrictProviderTip"
 		| "costrictTelemetry"
+		| "switchUiMode"
 		| "fetchCostrictInviteCode"
 		| "fixHistory"
 		| "checkReviewSuggestion"

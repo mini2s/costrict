@@ -1,6 +1,6 @@
 {
 	"$schema": "https://turbo.build/schema.json",
-	"globalEnv": ["ZGSM_PUBLIC_KEY", "COSTRICT_PUBLIC_KEY", "COSTRICT_BASE_URL", "NODE_ENV"],
+	"globalEnv": ["ZGSM_PUBLIC_KEY", "COSTRICT_PUBLIC_KEY", "COSTRICT_BASE_URL", "CS_CLOUD_UI_DIST_PATH", "NODE_ENV"],
 	"tasks": {
 		"lint": {},
 		"check-types": {},
