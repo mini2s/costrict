@@ -40,6 +40,7 @@ import { ChatCompletionChunk } from "openai/resources/index.mjs"
 import { convertToZAiFormat } from "../transform/zai-format"
 import { isDebug } from "../../utils/getDebugState"
 import { liteToolContractPrompt } from "../../core/prompts/tools/lite-descriptions"
+import { isJetbrainsPlatform } from "../../utils/platform"
 
 const autoModeModelId = "Auto"
 const isDev = process.env.NODE_ENV === "development"
@@ -364,6 +365,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 			"Accept-Language": metadata?.language || "en",
 			...COSTRICT_DEFAULT_HEADERS,
 			...(this.options.useCostrictCustomConfig && isDebug() ? (this.options.openAiHeaders ?? {}) : {}),
+			"User-Agent": `RooCode/3.52.1 ${isJetbrainsPlatform() ? "plugin_intellij" : "plugin_vscode"}/${Package.version}`,
 			"x-quota-identity": chatType || "system",
 			"X-Request-ID": requestId,
 			"x-user-id": metadata?.userId || "",
@@ -374,6 +376,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 			"x-costrict-idea": getEditorType(),
 			"zgsm-project-path": encodeURI(workspacePath),
 			"zgsm-prompt-tags": metadata?.promptTags || "",
+			"agent-type": metadata?.mode || "",
 			"x-caller": ["review", "security-review"].includes(metadata?.mode || "") ? "review-checker" : "chat",
 		}
 	}
