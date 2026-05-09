@@ -2,6 +2,10 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [2.8.0]
+
+- Update skills build config
+
 ## [2.7.9]
 
 - Add platform detection (JetBrains/VS Code) to User-Agent header
