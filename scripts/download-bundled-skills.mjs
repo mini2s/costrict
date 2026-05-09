@@ -26,7 +26,7 @@ const BUILD_SKILLS = [
 		name: "security-review",
 		repo: "zgsm-ai/security-review-skill",
 		branch: "main",
-		subdir: "skills/security-review",
+		subdir: "en/skills/security-review",
 		outputDir: "security-review",
 	},
 ]
