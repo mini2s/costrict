@@ -69,7 +69,7 @@ export class CsCloudService implements vscode.Disposable {
 			})
 		}
 
-		await waitForHttpReady(healthUrl, 30_000)
+		await waitForHttpReady(healthUrl, 60_000)
 		await assertOpenCodeCompatible(this.baseUrl)
 		return this.baseUrl
 	}
@@ -82,28 +82,34 @@ export class CsCloudService implements vscode.Disposable {
 	}
 }
 
-async function detectCsCloudPort(csCloudPath: string): Promise<number | undefined> {
-	try {
-		const stdout = await new Promise<string>((resolve) => {
-			exec(`"${csCloudPath}" status`, { timeout: 5000 }, (err, stdout) => {
-				resolve(stdout || "")
+async function detectCsCloudPort(csCloudPath: string, retries = 3, delayMs = 2000): Promise<number | undefined> {
+	for (let i = 0; i < retries; i++) {
+		try {
+			const stdout = await new Promise<string>((resolve) => {
+				exec(`"${csCloudPath}" status`, { timeout: 5000 }, (err, stdout) => {
+					resolve(stdout || "")
+				})
 			})
-		})
 
-		// 去掉 ANSI 颜色码（SGR 序列）
-		const ESC = String.fromCharCode(27)
-		const cleanStdout = stdout.replace(new RegExp(ESC + "\\[[0-9;]*m", "g"), "")
+			// 去掉 ANSI 颜色码（SGR 序列）
+			const ESC = String.fromCharCode(27)
+			const cleanStdout = stdout.replace(new RegExp(ESC + "\\[[0-9;]*m", "g"), "")
 
-		// 匹配 local_url: http://127.0.0.1:PORT 或 local_url: https://...:PORT
-		const match = cleanStdout.match(/local_url:\s+(https?:\/\/[^\s:]+:(\d+))/)
-		if (match) {
-			const port = parseInt(match[2], 10)
-			if (port > 0) {
-				return port
+			// 匹配 local_url: http://127.0.0.1:PORT 或 local_url: https://...:PORT
+			const match = cleanStdout.match(/local_url:\s+(https?:\/\/[^\s:]+:(\d+))/)
+			if (match) {
+				const port = parseInt(match[2], 10)
+				if (port > 0) {
+					return port
+				}
 			}
+		} catch {
+			// ignore detection failures
 		}
-	} catch {
-		// ignore detection failures
+
+		if (i < retries - 1) {
+			await new Promise((resolve) => setTimeout(resolve, delayMs))
+		}
 	}
 	return undefined
 }
@@ -112,9 +118,10 @@ function trimTrailingSlash(value: string) {
 	return value.replace(/\/+$/, "")
 }
 
-async function waitForHttpReady(url: string, timeoutMs: number) {
+async function waitForHttpReady(url: string, timeoutMs: number, initialDelayMs = 1000) {
 	const startedAt = Date.now()
 	let lastError: unknown
+	let attempt = 0
 
 	while (Date.now() - startedAt < timeoutMs) {
 		try {
@@ -122,7 +129,10 @@ async function waitForHttpReady(url: string, timeoutMs: number) {
 		} catch (error) {
 			lastError = error
 		}
-		await new Promise((resolve) => setTimeout(resolve, 300))
+		// 指数退避：1s, 2s, 4s, 4s, 4s...
+		const delay = Math.min(initialDelayMs * Math.pow(2, attempt), 4000)
+		attempt++
+		await new Promise((resolve) => setTimeout(resolve, delay))
 	}
 
 	throw new Error(

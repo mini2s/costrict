@@ -48,6 +48,20 @@ function mockExecReturn(stdout: string) {
 	})
 }
 
+function mockExecSequence(outputs: string[]) {
+	let callIndex = 0
+	vi.mocked(exec).mockImplementation((cmd, options, callback) => {
+		if (typeof options === "function") {
+			callback = options
+		}
+		const stdout = outputs[callIndex++] ?? ""
+		if (callback) {
+			callback(null, stdout, "")
+		}
+		return undefined as any
+	})
+}
+
 describe("CsCloudService", () => {
 	beforeEach(() => {
 		allowNetConnect("127.0.0.1")
@@ -152,6 +166,25 @@ describe("CsCloudService", () => {
 		const service = new CsCloudService(createOutputChannel() as never)
 
 		await expect(service.ensureStarted()).rejects.toThrow("cs-cloud 没有运行")
+		expect(spawn).not.toHaveBeenCalled()
+	})
+
+	it("retries cs-cloud status detection before falling back", async () => {
+		mockExecSequence([
+			"",
+			"",
+			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
+		])
+
+		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
+		nock("http://127.0.0.1:55555")
+			.get("/api/v1/conversations")
+			.query({ roots: "true", archived: "true" })
+			.reply(200, [])
+
+		const service = new CsCloudService(createOutputChannel() as never)
+
+		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
 		expect(spawn).not.toHaveBeenCalled()
 	})
 })
