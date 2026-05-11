@@ -760,11 +760,6 @@
 					"default": true,
 					"description": "Enable the isolated Assistant UI / cs-cloud mode."
 				},
-				"costrict.assistantUI.csCloudPath": {
-					"type": "string",
-					"default": "cs-cloud",
-					"description": "Command or absolute path used to start cs-cloud for Assistant UI mode."
-				},
 				"costrict.assistantUI.port": {
 					"type": "number",
 					"default": 45489,

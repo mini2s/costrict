@@ -69,7 +69,6 @@ describe("CsCloudService", () => {
 			baseUrl: "",
 			port: 45489,
 			autoStartCsCloud: false,
-			csCloudPath: "cs-cloud",
 		})
 		mockExecReturn("")
 	})
@@ -120,7 +119,7 @@ describe("CsCloudService", () => {
 	})
 
 	it("waits for detected port to become ready instead of falling back to config.port", async () => {
-		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: false, csCloudPath: "cs-cloud" })
+		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: false })
 		mockExecReturn(
 			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
 		)

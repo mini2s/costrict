@@ -1,8 +1,8 @@
 import * as vscode from "vscode"
-
+import os from "os"
+import path from "path"
 export interface AssistantUIConfig {
 	enabled: boolean
-	csCloudPath: string
 	port: number
 	autoStartCsCloud: boolean
 	baseUrl: string
@@ -16,7 +16,6 @@ export function getAssistantUIConfig(): AssistantUIConfig {
 
 	return {
 		enabled: config.get<boolean>("enabled", true),
-		csCloudPath: config.get<string>("csCloudPath", "cs-cloud"),
 		port: config.get<number>("port", 45489),
 		autoStartCsCloud: config.get<boolean>("autoStartCsCloud", true),
 		baseUrl: config.get<string>("baseUrl", ""),
