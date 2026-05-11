@@ -49,7 +49,6 @@ function shouldUseAssistantUIIframe(context: { extensionMode: number }, config: 
 describe("AssistantUIPanel", () => {
 	const baseAssistantUIConfig = {
 		enabled: true,
-		csCloudPath: "cs-cloud",
 		port: 45489,
 		autoStartCsCloud: true,
 		baseUrl: "",

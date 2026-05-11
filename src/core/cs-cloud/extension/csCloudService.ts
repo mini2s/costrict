@@ -16,7 +16,7 @@ export class CsCloudService implements vscode.Disposable {
 			return this.baseUrl
 		}
 
-		const detectedPort = await detectCsCloudPort(config.csCloudPath)
+		const detectedPort = await detectCsCloudPort()
 		if (detectedPort !== undefined) {
 			const healthUrl = `http://127.0.0.1:${detectedPort}/api/v1/runtime/health`
 			this.baseUrl = `http://127.0.0.1:${detectedPort}/api/v1`
@@ -48,8 +48,8 @@ export class CsCloudService implements vscode.Disposable {
 		}
 
 		if (!this.process) {
-			this.outputChannel.appendLine(`[AssistantUI] Starting cs-cloud: ${config.csCloudPath} start --port ${port}`)
-			this.process = spawn(config.csCloudPath, ["start"].concat(port ? ["--port", String(port)] : []), {
+			this.outputChannel.appendLine(`[AssistantUI] Starting cs-cloud: cs cloud start --port ${port}`)
+			this.process = spawn("cs", ["cloud", "start"].concat(port ? ["--port", String(port)] : []), {
 				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 				env: process.env,
 			})
@@ -82,11 +82,11 @@ export class CsCloudService implements vscode.Disposable {
 	}
 }
 
-async function detectCsCloudPort(csCloudPath: string, retries = 3, delayMs = 2000): Promise<number | undefined> {
+async function detectCsCloudPort(retries = 3, delayMs = 2000): Promise<number | undefined> {
 	for (let i = 0; i < retries; i++) {
 		try {
 			const stdout = await new Promise<string>((resolve) => {
-				exec(`"${csCloudPath}" status`, { timeout: 5000 }, (err, stdout) => {
+				exec(`cs cloud status`, { timeout: 5000 }, (err, stdout) => {
 					resolve(stdout || "")
 				})
 			})
