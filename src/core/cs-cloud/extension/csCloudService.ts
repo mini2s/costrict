@@ -6,6 +6,8 @@ import { getAssistantUIConfig } from "./config"
 export class CsCloudService implements vscode.Disposable {
 	private process: ChildProcessWithoutNullStreams | undefined
 	private baseUrl: string | undefined
+	private lastErrorLine: string | undefined
+	private processExited = false
 
 	constructor(private readonly outputChannel: vscode.OutputChannel) {}
 
@@ -29,7 +31,7 @@ export class CsCloudService implements vscode.Disposable {
 			this.outputChannel.appendLine(
 				`[AssistantUI] Detected cs-cloud on port ${detectedPort}, waiting for it to be ready...`,
 			)
-			await waitForHttpReady(healthUrl, 15_000)
+			await this.waitForHttpReady(healthUrl, 15_000)
 			await assertOpenCodeCompatible(this.baseUrl)
 			return this.baseUrl
 		}
@@ -48,28 +50,40 @@ export class CsCloudService implements vscode.Disposable {
 		}
 
 		if (!this.process) {
+			this.lastErrorLine = undefined
+			this.processExited = false
+
 			this.outputChannel.appendLine(`[AssistantUI] Starting cs-cloud: cs cloud start --port ${port}`)
 			this.process = spawn("cs", ["cloud", "start"].concat(port ? ["--port", String(port)] : []), {
 				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 				env: process.env,
 			})
 
-			this.process.stdout.on("data", (data) =>
-				this.outputChannel.appendLine(`[cs-cloud] ${String(data).trimEnd()}`),
-			)
-			this.process.stderr.on("data", (data) =>
-				this.outputChannel.appendLine(`[cs-cloud] ${String(data).trimEnd()}`),
-			)
+			this.process.stdout.on("data", (data) => {
+				const text = String(data).trimEnd()
+				this.outputChannel.appendLine(`[cs-cloud] ${text}`)
+				this.captureErrorLine(text)
+			})
+			this.process.stderr.on("data", (data) => {
+				const text = String(data).trimEnd()
+				this.outputChannel.appendLine(`[cs-cloud] ${text}`)
+				this.captureErrorLine(text)
+			})
 			this.process.on("exit", (code, signal) => {
 				this.outputChannel.appendLine(`[AssistantUI] cs-cloud exited code=${code ?? ""} signal=${signal ?? ""}`)
 				this.process = undefined
+				if (code !== 0 || signal !== null) {
+					this.processExited = true
+				}
 			})
 			this.process.on("error", (error) => {
 				this.outputChannel.appendLine(`[AssistantUI] Failed to start cs-cloud: ${error.message}`)
+				this.lastErrorLine = error.message
+				this.processExited = true
 			})
 		}
 
-		await waitForHttpReady(healthUrl, 60_000)
+		await this.waitForHttpReady(healthUrl, 60_000)
 		await assertOpenCodeCompatible(this.baseUrl)
 		return this.baseUrl
 	}
@@ -79,6 +93,52 @@ export class CsCloudService implements vscode.Disposable {
 			this.process.kill()
 		}
 		this.process = undefined
+	}
+
+	private captureErrorLine(text: string) {
+		const clean = stripAnsi(text).toLowerCase()
+		if (
+			clean.includes("error") ||
+			clean.includes("unauthorized") ||
+			clean.includes("fatal") ||
+			clean.includes("failed") ||
+			clean.includes("panic") ||
+			clean.includes("cannot")
+		) {
+			this.lastErrorLine = stripAnsi(text).trim()
+		}
+	}
+
+	private async waitForHttpReady(url: string, timeoutMs: number, initialDelayMs = 1000) {
+		const startedAt = Date.now()
+		let lastError: unknown
+		let attempt = 0
+
+		while (Date.now() - startedAt < timeoutMs) {
+			if (this.processExited) {
+				const reason = this.lastErrorLine ? `: ${this.lastErrorLine}` : ""
+				throw new Error(`cs-cloud 启动失败${reason}`)
+			}
+
+			try {
+				if (await isHttpReady(url)) return
+			} catch (error) {
+				lastError = error
+			}
+			// 指数退避：1s, 2s, 4s, 4s, 4s...
+			const delay = Math.min(initialDelayMs * Math.pow(2, attempt), 4000)
+			attempt++
+			await new Promise((resolve) => setTimeout(resolve, delay))
+		}
+
+		if (this.processExited) {
+			const reason = this.lastErrorLine ? `: ${this.lastErrorLine}` : ""
+			throw new Error(`cs-cloud 启动失败${reason}`)
+		}
+
+		throw new Error(
+			`Timed out waiting for cs-cloud at ${url}${lastError instanceof Error ? `: ${lastError.message}` : ""}`,
+		)
 	}
 }
 
@@ -91,9 +151,7 @@ async function detectCsCloudPort(retries = 3, delayMs = 2000): Promise<number | 
 				})
 			})
 
-			// 去掉 ANSI 颜色码（SGR 序列）
-			const ESC = String.fromCharCode(27)
-			const cleanStdout = stdout.replace(new RegExp(ESC + "\\[[0-9;]*m", "g"), "")
+			const cleanStdout = stripAnsi(stdout)
 
 			// 匹配 local_url: http://127.0.0.1:PORT 或 local_url: https://...:PORT
 			const match = cleanStdout.match(/local_url:\s+(https?:\/\/[^\s:]+:(\d+))/)
@@ -116,28 +174,6 @@ async function detectCsCloudPort(retries = 3, delayMs = 2000): Promise<number | 
 
 function trimTrailingSlash(value: string) {
 	return value.replace(/\/+$/, "")
-}
-
-async function waitForHttpReady(url: string, timeoutMs: number, initialDelayMs = 1000) {
-	const startedAt = Date.now()
-	let lastError: unknown
-	let attempt = 0
-
-	while (Date.now() - startedAt < timeoutMs) {
-		try {
-			if (await isHttpReady(url)) return
-		} catch (error) {
-			lastError = error
-		}
-		// 指数退避：1s, 2s, 4s, 4s, 4s...
-		const delay = Math.min(initialDelayMs * Math.pow(2, attempt), 4000)
-		attempt++
-		await new Promise((resolve) => setTimeout(resolve, delay))
-	}
-
-	throw new Error(
-		`Timed out waiting for cs-cloud at ${url}${lastError instanceof Error ? `: ${lastError.message}` : ""}`,
-	)
 }
 
 function isHttpReady(url: string): Promise<boolean> {
@@ -179,4 +215,9 @@ function getStatusCode(url: string): Promise<number> {
 		})
 		req.on("error", () => resolve(0))
 	})
+}
+
+function stripAnsi(text: string): string {
+	const ESC = String.fromCharCode(27)
+	return text.replace(new RegExp(ESC + "\\[[0-9;]*m", "g"), "")
 }
