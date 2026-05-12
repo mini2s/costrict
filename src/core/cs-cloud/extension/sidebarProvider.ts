@@ -63,6 +63,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				if (message.type === "executeCommand" && message.command) {
 					vscode.commands.executeCommand(message.command)
 				}
+				if (message.type === "reloadAssistantUI") {
+					await this.loadContent(webviewView)
+				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
 					// console.log("[sidebarProvider] received fetchQuota, proxying to", message.baseUrl)
 					try {
@@ -89,70 +92,13 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
-
 		const config = getAssistantUIConfig()
 		if (!config.enabled) {
 			webviewView.webview.html = this.getDisabledHtml()
 			return
 		}
 
-		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
-
-		try {
-			const workspaceDirectory = getAssistantUIWorkspaceDirectory()
-			const baseUrl = await vscode.window.withProgress(
-				{
-					location: vscode.ProgressLocation.Notification,
-					title: "Starting CoStrict Cloud",
-					cancellable: false,
-				},
-				() => this.csCloudService.ensureStarted(),
-			)
-			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
-
-			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
-			if (!accessToken) {
-				try {
-					const authFilePath = path.join(os.homedir(), ".costrict", "share", "auth.json")
-					if (fs.existsSync(authFilePath)) {
-						const content = fs.readFileSync(authFilePath, "utf-8")
-						const data = JSON.parse(content)
-						if (data?.access_token) {
-							accessToken = data.access_token
-						}
-					}
-				} catch (error) {
-					console.error("Failed to read fallback auth file:", error)
-				}
-			}
-			const costrictWebUrl = CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()
-			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
-			if (shouldUseAssistantUIIframe(this.context, config)) {
-				webviewView.webview.html = getAssistantUIIframeHtml(
-					webviewView.webview,
-					this.context,
-					baseUrl,
-					config.webUrl,
-					workspaceDirectory,
-					accessToken ?? undefined,
-					config.debug,
-					costrictWebUrl,
-				)
-			} else {
-				webviewView.webview.html = getAssistantUIStaticHtml(
-					webviewView.webview,
-					this.context,
-					baseUrl,
-					workspaceDirectory,
-					accessToken ?? undefined,
-					costrictWebUrl,
-				)
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error)
-			this.outputChannel.appendLine(`[AssistantUI] ${message}`)
-			webviewView.webview.html = this.getErrorHtml(message)
-		}
+		await this.loadContent(webviewView)
 
 		// Handle VS Code theme changes
 		vscode.window.onDidChangeActiveColorTheme(
@@ -202,20 +148,89 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 </html>`
 	}
 
+	private async loadContent(webviewView: vscode.WebviewView) {
+		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
+
+		try {
+			const workspaceDirectory = getAssistantUIWorkspaceDirectory()
+			const baseUrl = await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.Notification,
+					title: "Starting CoStrict Cloud",
+					cancellable: false,
+				},
+				() => this.csCloudService.ensureStarted(),
+			)
+			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
+
+			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
+			if (!accessToken) {
+				try {
+					const authFilePath = path.join(os.homedir(), ".costrict", "share", "auth.json")
+					if (fs.existsSync(authFilePath)) {
+						const content = fs.readFileSync(authFilePath, "utf-8")
+						const data = JSON.parse(content)
+						if (data?.access_token) {
+							accessToken = data.access_token
+						}
+					}
+				} catch (error) {
+					console.error("Failed to read fallback auth file:", error)
+				}
+			}
+			const costrictWebUrl = CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()
+			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
+			if (shouldUseAssistantUIIframe(this.context, getAssistantUIConfig())) {
+				webviewView.webview.html = getAssistantUIIframeHtml(
+					webviewView.webview,
+					this.context,
+					baseUrl,
+					getAssistantUIConfig().webUrl,
+					workspaceDirectory,
+					accessToken ?? undefined,
+					getAssistantUIConfig().debug,
+					costrictWebUrl,
+				)
+			} else {
+				webviewView.webview.html = getAssistantUIStaticHtml(
+					webviewView.webview,
+					this.context,
+					baseUrl,
+					workspaceDirectory,
+					accessToken ?? undefined,
+					costrictWebUrl,
+				)
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			this.outputChannel.appendLine(`[AssistantUI] ${message}`)
+			webviewView.webview.html = this.getErrorHtml(message)
+		}
+	}
+
 	private getErrorHtml(message: string): string {
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-errorForeground); }
-    pre { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; }
-  </style>
+	 <meta charset="UTF-8">
+	 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	 <style>
+	   body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); line-height: 1.5; }
+	   h3 { color: var(--vscode-errorForeground); margin-top: 0; }
+	   pre { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; overflow-x: auto; }
+	   .hint { margin-top: 12px; font-size: 0.9em; color: var(--vscode-descriptionForeground); }
+	   button { margin-top: 12px; padding: 6px 12px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; }
+	   button:hover { background: var(--vscode-button-hoverBackground); }
+	 </style>
 </head>
 <body>
-  <h3>Failed to load CoStrict Cloud</h3>
-  <pre>${message.replace(/</g, "&lt;")}</pre>
+	 <h3>CoStrict Cloud 启动失败</h3>
+	 <pre>${message.replace(/</g, "<")}</pre>
+	 <p class="hint">请检查输出面板（Output → CoStrict）中的完整日志，或尝试重新登录 cs-cloud。</p>
+	 <button onclick="vscode.postMessage({type:'reloadAssistantUI'})">重试</button>
+	 <script>
+	   const vscode = acquireVsCodeApi();
+	 </script>
 </body>
 </html>`
 	}

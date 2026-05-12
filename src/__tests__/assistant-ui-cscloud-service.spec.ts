@@ -1,5 +1,6 @@
 import nock from "nock"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { EventEmitter } from "events"
 import { allowNetConnect } from "../vitest.setup"
 
 const { getConfigValues, setConfigValues } = vi.hoisted(() => {
@@ -185,5 +186,35 @@ describe("CsCloudService", () => {
 
 		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
 		expect(spawn).not.toHaveBeenCalled()
+	})
+
+	it("reports underlying process error when cs-cloud exits with an error code", async () => {
+		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: true })
+		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").replyWithError("connection refused")
+
+		vi.mocked(spawn).mockImplementation(() => {
+			const stdout = new EventEmitter()
+			const stderr = new EventEmitter()
+			const child = Object.assign(new EventEmitter(), {
+				stdout,
+				stderr,
+				killed: false,
+				kill: vi.fn(),
+			}) as unknown as import("child_process").ChildProcessWithoutNullStreams
+
+			setTimeout(() => {
+				stderr.emit("data", " unauthorized device registration: device already belongs to another user\n")
+				child.emit("exit", 1, null)
+			}, 50)
+
+			return child
+		})
+
+		const service = new CsCloudService(createOutputChannel() as never)
+
+		await expect(service.ensureStarted()).rejects.toThrow(
+			"cs-cloud 启动失败: unauthorized device registration: device already belongs to another user",
+		)
+		expect(spawn).toHaveBeenCalled()
 	})
 })
