@@ -26,6 +26,13 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	private csCloudService: CsCloudService
 	private disposables: vscode.Disposable[] = []
 
+	/**
+	 * 缓存首次成功加载后的 HTML，用于侧边栏拖拽移动后快速恢复。
+	 * 当 VS Code 拖拽 Activity Bar 到另一侧边栏时，WebviewView 会被销毁后重建，
+	 * resolveWebviewView 会被再次调用。通过缓存避免重新调用 ensureStarted 和重新生成 HTML。
+	 */
+	private cachedHtml: string | undefined
+
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
@@ -114,6 +121,8 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					vscode.commands.executeCommand(message.command)
 				}
 				if (message.type === "reloadAssistantUI") {
+					// 用户主动触发 reload 时清除缓存，强制完整重新加载
+					this.cachedHtml = undefined
 					await this.loadContent(webviewView)
 				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
@@ -139,6 +148,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+
 		const config = getAssistantUIConfig()
 		if (!config.enabled) {
 			setCloudUnavailable("config disabled")
@@ -146,38 +156,13 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
+		// 如果有缓存的 HTML（侧边栏拖拽移动后重建 webview），直接复用
+		if (this.cachedHtml) {
+			webviewView.webview.html = this.cachedHtml
+			return
+		}
+
 		await this.loadContent(webviewView)
-
-		// Handle VS Code theme changes
-		vscode.window.onDidChangeActiveColorTheme(
-			(e) => {
-				const theme = e.kind === 1 || e.kind === 4 ? "light" : "dark"
-				webviewView.webview.postMessage({ type: "theme", theme })
-			},
-			null,
-			this.disposables,
-		)
-
-		// Handle visibility changes
-		webviewView.onDidChangeVisibility(
-			() => {
-				if (webviewView.visible) {
-					// Optional: refresh cs-cloud health or re-fetch state
-				}
-			},
-			null,
-			this.disposables,
-		)
-
-		// Handle dispose
-		webviewView.onDidDispose(
-			() => {
-				this.view = undefined
-				this.dispose()
-			},
-			null,
-			this.disposables,
-		)
 	}
 
 	private getDisabledHtml(): string {
@@ -230,23 +215,26 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			const pluginVersion = Package.version
 			const pluginSha = Package.sha
 			const pluginBuildTime = Package.buildTime
+			const config = getAssistantUIConfig()
 			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
-			if (shouldUseAssistantUIIframe(this.context, getAssistantUIConfig())) {
-				webviewView.webview.html = getAssistantUIIframeHtml(
+			if (shouldUseAssistantUIIframe(this.context, config)) {
+				const html = getAssistantUIIframeHtml(
 					webviewView.webview,
 					this.context,
 					baseUrl,
-					getAssistantUIConfig().webUrl,
+					config.webUrl,
 					workspaceDirectory,
 					accessToken ?? undefined,
-					getAssistantUIConfig().debug,
+					config.debug,
 					costrictWebUrl,
 					pluginVersion,
 					pluginSha,
 					pluginBuildTime,
 				)
+				webviewView.webview.html = html
+				this.cachedHtml = html
 			} else {
-				webviewView.webview.html = getAssistantUIStaticHtml(
+				const html = getAssistantUIStaticHtml(
 					webviewView.webview,
 					this.context,
 					baseUrl,
@@ -257,6 +245,8 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					pluginSha,
 					pluginBuildTime,
 				)
+				webviewView.webview.html = html
+				this.cachedHtml = html
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error)
