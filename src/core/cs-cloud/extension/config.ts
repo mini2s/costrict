@@ -1,8 +1,9 @@
 import * as vscode from "vscode"
-import os from "os"
-import path from "path"
+// import os from "os"
+// import path from "path"
 export interface AssistantUIConfig {
 	enabled: boolean
+	defaultCli: "csc" | "cs"
 	port: number
 	autoStartCsCloud: boolean
 	baseUrl: string
@@ -13,8 +14,9 @@ export interface AssistantUIConfig {
 
 export function getAssistantUIConfig(): AssistantUIConfig {
 	const config = vscode.workspace.getConfiguration("costrict.assistantUI")
-
+	// csc
 	return {
+		defaultCli: config.get<"csc" | "cs">("defaultCli", "csc"),
 		enabled: config.get<boolean>("enabled", true),
 		port: config.get<number>("port", 45489),
 		autoStartCsCloud: config.get<boolean>("autoStartCsCloud", true),
