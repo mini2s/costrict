@@ -760,6 +760,15 @@
 					"default": true,
 					"description": "Enable the isolated Assistant UI / cs-cloud mode."
 				},
+				"costrict.assistantUI.defaultCli": {
+					"type": "string",
+					"enum": [
+						"csc",
+						"cs"
+					],
+					"default": "csc",
+					"description": "CLI binary used to start and query cs-cloud (e.g. csc cloud start)."
+				},
 				"costrict.assistantUI.port": {
 					"type": "number",
 					"default": 45489,
