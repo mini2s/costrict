@@ -188,7 +188,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 			})
 		}
 
-		await this.waitForHttpReady(healthUrl, 60_000)
+		await this.waitForHttpReady(healthUrl, 15_000)
 		await assertOpenCodeCompatible(this.baseUrl)
 		return this.baseUrl
 	}
