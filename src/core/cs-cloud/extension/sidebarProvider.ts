@@ -1,6 +1,4 @@
 import * as vscode from "vscode"
-import * as fs from "fs"
-import * as os from "os"
 import * as path from "path"
 import { CsCloudService } from "./csCloudService"
 import { getAssistantUIConfig, type AssistantUIConfig } from "./config"
@@ -16,6 +14,7 @@ import { CostrictAuthConfig } from "../../costrict/auth/authConfig"
 import type { AssistantUIContextMessage } from "./types"
 import { setActiveCloudProvider, onCloudUiReady, setCloudUnavailable } from "./contextBridge"
 import { Package } from "../../../shared/package"
+import { readCostrictAccessToken } from "../../costrict/runtime-config"
 
 export function getAssistantUIWorkspaceDirectory() {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -256,13 +255,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
 			if (!accessToken) {
 				try {
-					const authFilePath = path.join(os.homedir(), ".costrict", "share", "auth.json")
-					if (fs.existsSync(authFilePath)) {
-						const content = fs.readFileSync(authFilePath, "utf-8")
-						const data = JSON.parse(content)
-						if (data?.access_token) {
-							accessToken = data.access_token
-						}
+					const data = readCostrictAccessToken()
+					if (data?.access_token) {
+						accessToken = data.access_token
 					}
 				} catch (error) {
 					console.error("Failed to read fallback auth file:", error)

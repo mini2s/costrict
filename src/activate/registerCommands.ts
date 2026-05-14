@@ -23,6 +23,8 @@ import { getTerminalManager } from "../core/costrict/cli-wrap"
 import { getConfiguredUiMode, UiMode, UI_MODE_OPTIONS } from "../shared/uiMode"
 import type { AssistantUIContextMessage } from "../core/cs-cloud/extension/types"
 import { sendContextToCloudWithFocus } from "../core/cs-cloud/extension/contextBridge"
+import { CostrictAuthService } from "../core/costrict/auth"
+import { readCostrictAccessToken } from "../core/costrict/runtime-config"
 
 interface UriSource {
 	path: string
@@ -80,6 +82,46 @@ export type RegisterCommandOptions = {
 	outputChannel: vscode.OutputChannel
 	provider: ClineProvider
 	taskId?: string
+}
+
+/**
+ * 检查用户是否已登录 CoStrict。
+ * 先通过 CostrictAuthService 查询 token，再回退到 ~/.costrict/share/auth.json。
+ */
+async function isCostrictLoggedIn(): Promise<boolean> {
+	try {
+		const token = await CostrictAuthService.getInstance().getCurrentAccessToken()
+		if (token) return true
+	} catch {
+		// 服务未初始化时静默忽略
+	}
+
+	// Fallback: 从本地 auth 文件读取
+	try {
+		const data = readCostrictAccessToken()
+		if (data?.access_token) return true
+	} catch {
+		// 文件不存在或格式错误时静默忽略
+	}
+
+	return false
+}
+
+/**
+ * 应用 UI 模式切换：更新配置、setContext、聚焦对应 sidebar，最后 reload window。
+ */
+async function applyUiMode(mode: UiMode, label: string) {
+	await vscode.workspace
+		.getConfiguration(Package.commandIDPrefix)
+		.update("uiMode", mode, vscode.ConfigurationTarget.Global)
+	await vscode.commands.executeCommand("setContext", "costrict.uiMode", mode)
+	if (mode === "cloud") {
+		await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+	} else {
+		await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+	}
+	void vscode.window.showInformationMessage(`Switched to ${label}`)
+	await vscode.commands.executeCommand("workbench.action.reloadWindow")
 }
 
 export const registerCommands = (options: RegisterCommandOptions) => {
@@ -170,47 +212,62 @@ export const getCommandsMap = ({
 			return
 		}
 
-		await vscode.workspace
-			.getConfiguration(Package.commandIDPrefix)
-			.update("uiMode", selection.value, vscode.ConfigurationTarget.Global)
-
-		// Update the context key so that VSCode re-evaluates the "when" clauses
-		// in package.json and shows/hides the correct sidebar view.
-		await vscode.commands.executeCommand("setContext", "costrict.uiMode", selection.value)
-
-		// Focus the newly activated sidebar view.
+		// 切换到 Cloud 模式前校验登录状态
 		if (selection.value === "cloud") {
-			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
-		} else {
-			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+			const loggedIn = await isCostrictLoggedIn()
+			if (!loggedIn) {
+				const action = await vscode.window.showWarningMessage(
+					"Please log in to CoStrict first before switching to Cloud mode.",
+					"Login",
+				)
+				if (action === "Login") {
+					try {
+						await CostrictAuthService.getInstance().startLogin()
+						// 登录成功，继续完成 Cloud 模式切换
+					} catch (error) {
+						void vscode.window.showErrorMessage(
+							`Login failed: ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return
+					}
+				} else {
+					return
+				}
+			}
 		}
 
-		void vscode.window.showInformationMessage(`Switched to ${selection.label}`)
+		await applyUiMode(selection.value, selection.label)
 	},
 	toggleUiMode: async () => {
 		const currentMode = getConfiguredUiMode()
 		const targetMode: UiMode = currentMode === "classic" ? "cloud" : "classic"
 		const targetLabel = targetMode === "classic" ? "Classic Mode" : "Cloud Mode"
 
-		await vscode.workspace
-			.getConfiguration(Package.commandIDPrefix)
-			.update("uiMode", targetMode, vscode.ConfigurationTarget.Global)
-
-		// Update the context key so that VSCode re-evaluates the "when" clauses
-		// in package.json and shows/hides the correct sidebar view.
-		await vscode.commands.executeCommand("setContext", "costrict.uiMode", targetMode)
-
-		// Focus the newly activated sidebar view.
+		// 切换到 Cloud 模式前校验登录状态
 		if (targetMode === "cloud") {
-			await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
-		} else {
-			await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+			const loggedIn = await isCostrictLoggedIn()
+			if (!loggedIn) {
+				const action = await vscode.window.showWarningMessage(
+					"Please log in to CoStrict first before switching to Cloud mode.",
+					"Login",
+				)
+				if (action === "Login") {
+					try {
+						await CostrictAuthService.getInstance().startLogin()
+						// 登录成功，继续完成 Cloud 模式切换
+					} catch (error) {
+						void vscode.window.showErrorMessage(
+							`Login failed: ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return
+					}
+				} else {
+					return
+				}
+			}
 		}
 
-		void vscode.window.showInformationMessage(`Switched to ${targetLabel}`)
-
-		// Reload window to apply the new UI mode
-		await vscode.commands.executeCommand("workbench.action.reloadWindow")
+		await applyUiMode(targetMode, targetLabel)
 	},
 	historyButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
