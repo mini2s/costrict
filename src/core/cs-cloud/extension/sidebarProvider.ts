@@ -194,7 +194,11 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			webviewView.webview.html = this.getDisabledHtml()
 			return
 		}
-
+		// 如果有缓存的 HTML（侧边栏拖拽移动后重建 webview），直接复用
+		if (this.cachedHtml) {
+			webviewView.webview.html = this.cachedHtml
+			return
+		}
 		// 2. 根据持久化状态渲染
 		switch (this.csCloudService.state) {
 			case "crashed":
