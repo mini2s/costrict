@@ -85,11 +85,126 @@ export function addNonceToScriptTags(html: string, nonce: string) {
 }
 
 export function injectIntoHead(html: string, content: string) {
-	return html.replace(
-		"<head>",
-		`<head>
-${content}`,
-	)
+	return html.replace("<head>", `<head>\n${content}`)
+}
+
+export function injectBeforeBodyClose(html: string, content: string) {
+	return html.replace("</body>", `${content}\n</body>`)
+}
+
+/**
+ * 生成表单状态持久化脚本。
+ * 利用 VS Code 的 acquireVsCodeApi().getState()/setState() API，
+ * 在 webview 销毁后重建时自动恢复输入框/文本域等元素的值。
+ * 解决侧边栏拖拽移动后 UI 状态丢失的问题。
+ */
+export function getFormStatePersistenceScript(): string {
+	return /* js */ `
+(function(){
+  var vscode = window.__VSCODE_API__;
+  if (!vscode) return;
+
+  function collectFormState() {
+    var state = {};
+    try {
+      var inputs = document.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="file"]), textarea, select, [contenteditable="true"]');
+      inputs.forEach(function(el, i) {
+        var key = el.id || el.name || el.getAttribute('data-state-key') || ('__anon_' + i);
+        try {
+          if (el.getAttribute('contenteditable') === 'true') {
+            state[key] = el.innerText || el.textContent || '';
+          } else if (el.type === 'checkbox' || el.type === 'radio') {
+            state[key] = el.checked;
+          } else {
+            state[key] = el.value || '';
+          }
+        } catch(e) {}
+      });
+    } catch(e) {}
+    return state;
+  }
+
+  function saveState() {
+    try {
+      var state = collectFormState();
+      if (Object.keys(state).length > 0) {
+        vscode.setState(state);
+      }
+    } catch(e) {}
+  }
+
+  function applyState(saved) {
+    if (!saved || typeof saved !== 'object') return;
+    try {
+      var inputs = document.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="file"]), textarea, select, [contenteditable="true"]');
+      inputs.forEach(function(el, i) {
+        var key = el.id || el.name || el.getAttribute('data-state-key') || ('__anon_' + i);
+        try {
+          if (saved[key] !== undefined) {
+            if (el.getAttribute('contenteditable') === 'true') {
+              if (el.innerText !== saved[key]) {
+                el.innerText = saved[key];
+                el.textContent = saved[key];
+              }
+            } else if (el.type === 'checkbox' || el.type === 'radio') {
+              if (el.checked !== saved[key]) el.checked = saved[key];
+            } else {
+              if (el.value !== saved[key]) {
+                el.value = saved[key];
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+          }
+        } catch(e) {}
+      });
+    } catch(e) {}
+  }
+
+  function restoreState() {
+    try {
+      var saved = vscode.getState();
+      if (!saved) return;
+      applyState(saved);
+
+      // 使用 MutationObserver 监听 React 动态渲染的新元素
+      var attempts = 0;
+      var maxAttempts = 10;
+      var observer = new MutationObserver(function() {
+        applyState(saved);
+        attempts++;
+        if (attempts >= maxAttempts) {
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+      setTimeout(function() { observer.disconnect(); }, 5000);
+    } catch(e) {}
+  }
+
+  // 每 3 秒自动保存
+  setInterval(saveState, 3000);
+
+  // 页面隐藏时保存
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') saveState();
+  });
+
+  // 页面卸载前保存
+  window.addEventListener('beforeunload', saveState);
+
+  // DOM 就绪后恢复状态
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(restoreState, 200);
+    });
+  } else {
+    setTimeout(restoreState, 200);
+  }
+})();`
 }
 
 function getNonce() {
@@ -369,6 +484,9 @@ export function getAssistantUIStaticHtml(
         })();
     </script>`,
 	)
+	// 注入表单状态持久化脚本，确保侧边栏拖拽后输入框内容不丢失
+	const stateScript = `<script nonce="${nonce}">${getFormStatePersistenceScript()}</script>`
+	html = injectBeforeBodyClose(html, stateScript)
 	return html
 }
 
@@ -494,6 +612,7 @@ export function getAssistantUIIframeHtml(
       setTimeout(window.__ASSISTANT_UI_HIDE_LOADING__, 8000);
     });
     const vscodeApi = acquireVsCodeApi();
+    window.__VSCODE_API__ = vscodeApi;
     const frameOrigin = new URL(window.__ASSISTANT_UI_FRAME_URL__).origin;
     let cloudFrameReady = false;
     const pendingFrameMessages = [];
@@ -567,6 +686,7 @@ export function getAssistantUIIframeHtml(
     });
   </script>
   <iframe id="cloud-frame" src="${escapeHtml(frameUrl)}" title="CoStrict Assistant UI"></iframe>
+  <script nonce="${nonce}">${getFormStatePersistenceScript()}</script>
 </body>
 </html>`
 }
