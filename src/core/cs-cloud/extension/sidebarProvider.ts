@@ -320,15 +320,41 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	   .hint { margin-top: 12px; font-size: 0.9em; color: var(--vscode-descriptionForeground); }
 	   button { margin-top: 12px; padding: 6px 12px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; }
 	   button:hover { background: var(--vscode-button-hoverBackground); }
+	   button:disabled { opacity: 0.5; cursor: not-allowed; }
+	   .error-detail { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; overflow-x: auto; }
 	 </style>
 </head>
 <body>
 	 <h3>CoStrict Cloud 启动失败</h3>
-	 <pre>${escapeHtml(message)}</pre>
+	 <pre class="error-detail">${escapeHtml(message)}</pre>
 	 <p class="hint">请检查输出面板（Output → CoStrict）中的完整日志，或尝试重新登录 cs-cloud。</p>
-	 <button onclick="vscode.postMessage({type:'restartCsCloud'})">重试</button>
+	 <button id="restart-btn" onclick="handleRestart()">重试</button>
 	 <script>
 	   const vscode = acquireVsCodeApi();
+
+	   function handleRestart() {
+	     const btn = document.getElementById("restart-btn");
+	     if (btn) {
+	       btn.disabled = true;
+	       btn.textContent = "正在重启...";
+	     }
+	     vscode.postMessage({ type: "restartCsCloud" });
+	   }
+
+	   // 监听重启结果（由 SidebarProvider 回发）
+	   window.addEventListener("message", (e) => {
+	     if (e.data?.type === "restartFailed") {
+	       const btn = document.getElementById("restart-btn");
+	       if (btn) {
+	         btn.disabled = false;
+	         btn.textContent = "重试";
+	       }
+	       const detail = document.querySelector(".error-detail");
+	       if (detail) {
+	         detail.textContent = e.data.reason;
+	       }
+	     }
+	   });
 	 </script>
 </body>
 </html>`
