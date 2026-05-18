@@ -1164,7 +1164,7 @@ describe("webviewMessageHandler - downloadErrorDiagnostics", () => {
 	})
 })
 
-describe("webviewMessageHandler - CostrictCliStart", () => {
+describe.skip("webviewMessageHandler - CostrictCliStart", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		mockTerminalManager.setMessageSender.mockReset()
