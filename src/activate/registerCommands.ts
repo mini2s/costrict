@@ -19,7 +19,8 @@ import { t } from "../i18n"
 import { EditorContext, EditorUtils } from "../integrations/editor/EditorUtils"
 import * as path from "path"
 import { handleGenerateCommitMessage } from "../core/costrict/commit"
-import { getTerminalManager } from "../core/costrict/cli-wrap"
+// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+// import { getTerminalManager } from "../core/costrict/cli-wrap"
 import { getConfiguredUiMode, UiMode, UI_MODE_OPTIONS } from "../shared/uiMode"
 import type { AssistantUIContextMessage } from "../core/cs-cloud/extension/types"
 import { sendContextToCloudWithFocus } from "../core/cs-cloud/extension/contextBridge"
@@ -477,26 +478,27 @@ export const getCommandsMap = ({
 		const chatMessage = textPaths.length > 0 ? textPaths.join(" ") + " " : ""
 
 		// When the CLI tab is active, forward file paths directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running && chatMessage.trim().length > 0) {
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + chatMessage + PASTE_END)
-				await Promise.all([
-					visibleProvider.postMessageToWebview({
-						type: "action",
-						action: "switchTab",
-						tab: "cs-cli",
-					}),
-					visibleProvider.postMessageToWebview({
-						type: "CostrictCliToast",
-						text: "File path inserted into CoStrict CLI",
-					}),
-				])
-				return
-			}
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (visibleProvider.activeTab === "cs-cli") {
+		// 	const terminalManager = getTerminalManager()
+		// 	if (terminalManager.running && chatMessage.trim().length > 0) {
+		// 		const PASTE_START = "\x1b[200~"
+		// 		const PASTE_END = "\x1b[201~"
+		// 		await terminalManager.write(PASTE_START + chatMessage + PASTE_END)
+		// 		await Promise.all([
+		// 			visibleProvider.postMessageToWebview({
+		// 				type: "action",
+		// 				action: "switchTab",
+		// 				tab: "cs-cli",
+		// 			}),
+		// 			visibleProvider.postMessageToWebview({
+		// 				type: "CostrictCliToast",
+		// 				text: "File path inserted into CoStrict CLI",
+		// 			}),
+		// 		])
+		// 		return
+		// 	}
+		// }
 
 		const payload: { text: string; images?: string[] } = {
 			text: chatMessage,

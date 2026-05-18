@@ -6,7 +6,8 @@
  */
 
 import * as vscode from "vscode"
-import { getTerminalManager, cleanupStaleProcesses } from "./cli-wrap"
+// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+// import { getTerminalManager, cleanupStaleProcesses } from "./cli-wrap"
 import type { ClineProvider } from "../webview/ClineProvider"
 import { registerAutoCompletionProvider, CompletionStatusBar } from "./auto-complete"
 
@@ -91,8 +92,9 @@ export async function activate(
 	const isVscodePlatform = !isJetbrains && !isCliPatform()
 	const logger = createLogger(Package.outputChannel)
 
-	void cleanupStaleProcesses(context)
-	getTerminalManager().setExtensionContext(context)
+	// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+	// void cleanupStaleProcesses(context)
+	// getTerminalManager().setExtensionContext(context)
 
 	initErrorCodeManager(provider)
 	await initialize(provider, logger)
@@ -228,7 +230,8 @@ export async function activate(
  * Deactivation function for ZGSM
  */
 export async function deactivate() {
-	void getTerminalManager().dispose()
+	// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+	// void getTerminalManager().dispose()
 	void NotificationService.getInstance().stopPeriodicFetch()
 	void disposeGitCommitListener()
 	void disconnectIPC()

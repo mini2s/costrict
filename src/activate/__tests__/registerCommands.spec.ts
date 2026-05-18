@@ -123,7 +123,7 @@ describe("registerCommands", () => {
 		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith("Cannot find any visible CoStrict instances.")
 	})
 
-	it("posts a CLI toast when inserting file paths into a running CoStrict CLI terminal", async () => {
+	it.skip("posts a CLI toast when inserting file paths into a running CoStrict CLI terminal", async () => {
 		const mockProvider = {
 			cwd: "/mock/workspace",
 			activeTab: "cs-cli",

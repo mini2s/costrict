@@ -24,7 +24,8 @@ const LazyHistoryView = React.lazy(() => import("./components/history/HistoryVie
 const LazySettingsView = React.lazy(() => import("./components/settings/SettingsView"))
 const LazyCodeReviewPage = React.lazy(() => import("./components/code-review"))
 const LazyCodeReviewHistoryView = React.lazy(() => import("./components/code-review/CodeReviewHistoryView"))
-const LazyCostrictCliView = React.lazy(() => import("./components/costrict-cli/CostrictCliView"))
+// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关组件暂不加载，待后续恢复
+// const LazyCostrictCliView = React.lazy(() => import("./components/costrict-cli/CostrictCliView"))
 const LazyWelcomeView = React.lazy(() => import("./components/welcome/WelcomeViewProvider"))
 const LazyCostrictAccountView = React.lazy(() =>
 	import("./components/cloud/CostrictAccountView").then((m) => ({ default: m.CostrictAccountView })),
@@ -44,7 +45,8 @@ type Tab =
 	| "settings"
 	| "history"
 	| "chat"
-	| "cs-cli"
+	// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，暂时从类型中移除
+	// | "cs-cli"
 	| "marketplace"
 	| "cloud"
 	| "costrict-account"
@@ -112,8 +114,8 @@ const App = () => {
 		hasClosedCodeReviewWelcomeTips,
 		reviewTask,
 		setReviewTask,
-		didHydrateCliState,
-		setDidHydrateSClitate,
+		// didHydrateCliState,
+		// setDidHydrateSClitate,
 	} = useExtensionState()
 	const { t } = useTranslation()
 
@@ -122,7 +124,7 @@ const App = () => {
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
-	const isChatTab = useMemo(() => ["chat", "codeReview", "cs-cli"].includes(tab), [tab])
+	const isChatTab = useMemo(() => ["chat", "codeReview"].includes(tab), [tab])
 
 	const [humanRelayDialogState, setHumanRelayDialogState] = useState<HumanRelayDialogState>({
 		isOpen: false,
@@ -165,9 +167,10 @@ const App = () => {
 
 			setCurrentSection(undefined)
 			// setCurrentMarketplaceTab(undefined)
-			if (newTab === "cs-cli" && !didHydrateCliState) {
-				setDidHydrateSClitate(true)
-			}
+			// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+			// if (newTab === "cs-cli" && !didHydrateCliState) {
+			// 	setDidHydrateSClitate(true)
+			// }
 			// Notify backend of active tab change so it can hibernate/wake non-CLI features
 			if (settingsRef.current?.checkUnsaveChanges) {
 				settingsRef.current.checkUnsaveChanges(() => {
@@ -179,7 +182,7 @@ const App = () => {
 				vscode.postMessage({ type: "switchTab", tab: newTab })
 			}
 		},
-		[didHydrateCliState, mdmCompliant, setDidHydrateSClitate],
+		[mdmCompliant],
 	)
 
 	const toggleCodeReviewTips = useCallback(() => {
@@ -198,15 +201,16 @@ const App = () => {
 			const message: ExtensionMessage = e.data
 
 			// When CLI tab is active, route invoke messages to the terminal via bracketed paste
-			if (message.type === "invoke" && tab === "cs-cli") {
-				const text = message.text ?? ""
-				if (text) {
-					const PASTE_START = "\x1b[200~"
-					const PASTE_END = "\x1b[201~"
-					vscode.postMessage({ type: "CostrictCliInput", data: PASTE_START + text + PASTE_END })
-				}
-				return
-			}
+			// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+			// if (message.type === "invoke" && tab === "cs-cli") {
+			// 	const text = message.text ?? ""
+			// 	if (text) {
+			// 		const PASTE_START = "\x1b[200~"
+			// 		const PASTE_END = "\x1b[201~"
+			// 		vscode.postMessage({ type: "CostrictCliInput", data: PASTE_START + text + PASTE_END })
+			// 	}
+			// 	return
+			// }
 
 			if (message.type === "action" && message.action) {
 				// Handle switchTab action with tab parameter
@@ -214,9 +218,10 @@ const App = () => {
 					const targetTab = message.tab as Tab
 					// Use setTab directly instead of switchTab to avoid re-posting
 					// to the backend (which would echo back and cause an infinite loop).
-					if (targetTab === "cs-cli" && !didHydrateCliState) {
-						setDidHydrateSClitate(true)
-					}
+					// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+					// if (targetTab === "cs-cli" && !didHydrateCliState) {
+					// 	setDidHydrateSClitate(true)
+					// }
 					setTab(targetTab)
 					// Extract targetSection from values if provided
 					const targetSection = message.values?.section as string | undefined
@@ -270,7 +275,7 @@ const App = () => {
 				chatViewRef.current?.acceptInput()
 			}
 		},
-		[switchTab, didHydrateCliState, setDidHydrateSClitate, tab],
+		[switchTab],
 	)
 
 	useEvent("message", onMessage)
@@ -342,11 +347,12 @@ const App = () => {
 					icon: "codicon-code-review",
 					// icon: "codicon-search",
 				},
-				{
-					label: t("common:costrictCli.tabs.cli"),
-					value: "cs-cli",
-					icon: "codicon-terminal",
-				},
+				// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+				// {
+				// 	label: t("common:costrictCli.tabs.cli"),
+				// 	value: "cs-cli",
+				// 	icon: "codicon-terminal",
+				// },
 			)
 		}
 
@@ -505,15 +511,13 @@ const App = () => {
 						</div>
 					)}
 				</div>
-				<TabContent className={tab === "cs-cli" ? "p-0 overflow-hidden" : tab === "codeReview" ? "p-0" : ""}>
-					{tab !== "cs-cli" && (
-						<ChatView
-							ref={chatViewRef}
-							isHidden={tab !== "chat"}
-							showAnnouncement={showAnnouncement}
-							hideAnnouncement={() => setShowAnnouncement(false)}
-						/>
-					)}
+				<TabContent className={tab === "codeReview" ? "p-0" : ""}>
+					<ChatView
+						ref={chatViewRef}
+						isHidden={tab !== "chat"}
+						showAnnouncement={showAnnouncement}
+						hideAnnouncement={() => setShowAnnouncement(false)}
+					/>
 					{tab === "codeReview" && (
 						<React.Suspense fallback={<LoadingView />}>
 							<LazyCodeReviewPage
@@ -526,11 +530,12 @@ const App = () => {
 							/>
 						</React.Suspense>
 					)}
-					{apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
+					{/* HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复 */}
+					{/* {apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
 						<React.Suspense fallback={<LoadingView />}>
 							<LazyCostrictCliView isHidden={tab !== "cs-cli"} />
 						</React.Suspense>
-					)}
+					)} */}
 				</TabContent>
 			</div>
 			<MemoizedHumanRelayDialog
