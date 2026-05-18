@@ -122,8 +122,9 @@ import { CostrictAuthCommands, CostrictAuthConfig } from "../costrict/auth"
 import { generateNewSessionClientId, getClientId } from "../../utils/getClientId"
 import { defaultCodebaseIndexEnabled } from "../../services/code-index/constants"
 import { CodeReviewService, ReviewTargetType } from "../costrict/code-review"
-import { getTerminalManager } from "../costrict/cli-wrap"
-import { getContextSyncService } from "../costrict/cli-wrap/contextSync"
+// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+// import { getTerminalManager } from "../costrict/cli-wrap"
+// import { getContextSyncService } from "../costrict/cli-wrap/contextSync"
 import { defaultLang } from "../../utils/language"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { isJetbrainsPlatform } from "../../utils/platform"
@@ -841,11 +842,12 @@ export class ClineProvider
 		}
 
 		// Stop CLI terminal process if running
-		const terminalManager = getTerminalManager()
-		if (terminalManager.running) {
-			await terminalManager.stop()
-			this.log("Stopped CLI terminal process")
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// const terminalManager = getTerminalManager()
+		// if (terminalManager.running) {
+		// 	await terminalManager.stop()
+		// 	this.log("Stopped CLI terminal process")
+		// }
 
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
@@ -936,26 +938,27 @@ export class ClineProvider
 		}
 
 		// When the CLI tab is active, forward context directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const { customSupportPrompts } = await visibleProvider.getState()
-			const prompt = supportPrompt.create(promptType as SupportPromptType, params, customSupportPrompts)
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running) {
-				// Use bracketed paste mode so the Ink-based CLI receives the entire
-				// prompt as a single paste event rather than interpreting newlines
-				// as individual Enter keypresses.  Only paste, do not auto-submit.
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + prompt + PASTE_END)
-				// Ensure the webview switches to the CLI tab so the user sees the result
-				await visibleProvider.postMessageToWebview({
-					type: "action",
-					action: "switchTab",
-					tab: "cs-cli",
-				})
-				return
-			}
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (visibleProvider.activeTab === "cs-cli") {
+		// 	const { customSupportPrompts } = await visibleProvider.getState()
+		// 	const prompt = supportPrompt.create(promptType as SupportPromptType, params, customSupportPrompts)
+		// 	const terminalManager = getTerminalManager()
+		// 	if (terminalManager.running) {
+		// 		// Use bracketed paste mode so the Ink-based CLI receives the entire
+		// 		// prompt as a single paste event rather than interpreting newlines
+		// 		// as individual Enter keypresses.  Only paste, do not auto-submit.
+		// 		const PASTE_START = "\x1b[200~"
+		// 		const PASTE_END = "\x1b[201~"
+		// 		await terminalManager.write(PASTE_START + prompt + PASTE_END)
+		// 		// Ensure the webview switches to the CLI tab so the user sees the result
+		// 		await visibleProvider.postMessageToWebview({
+		// 			type: "action",
+		// 			action: "switchTab",
+		// 			tab: "cs-cli",
+		// 		})
+		// 		return
+		// 	}
+		// }
 
 		const { customSupportPrompts } = await visibleProvider.getState()
 		if (promptType === "ZGSM_CODE_REVIEW") {
@@ -1020,25 +1023,26 @@ export class ClineProvider
 		}
 
 		// When the CLI tab is active, forward context directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const { customSupportPrompts } = await visibleProvider.getState()
-			const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running) {
-				// Use bracketed paste mode so the Ink-based CLI receives the entire
-				// prompt as a single paste event rather than interpreting newlines
-				// as individual Enter keypresses.  Only paste, do not auto-submit.
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + prompt + PASTE_END)
-				await visibleProvider.postMessageToWebview({
-					type: "action",
-					action: "switchTab",
-					tab: "cs-cli",
-				})
-				return
-			}
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (visibleProvider.activeTab === "cs-cli") {
+		// 	const { customSupportPrompts } = await visibleProvider.getState()
+		// 	const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
+		// 	const terminalManager = getTerminalManager()
+		// 	if (terminalManager.running) {
+		// 		// Use bracketed paste mode so the Ink-based CLI receives the entire
+		// 		// prompt as a single paste event rather than interpreting newlines
+		// 		// as individual Enter keypresses.  Only paste, do not auto-submit.
+		// 		const PASTE_START = "\x1b[200~"
+		// 		const PASTE_END = "\x1b[201~"
+		// 		await terminalManager.write(PASTE_START + prompt + PASTE_END)
+		// 		await visibleProvider.postMessageToWebview({
+		// 			type: "action",
+		// 			action: "switchTab",
+		// 			tab: "cs-cli",
+		// 		})
+		// 		return
+		// 	}
+		// }
 
 		const { customSupportPrompts } = await visibleProvider.getState()
 		const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
@@ -2422,14 +2426,15 @@ export class ClineProvider
 	public setActiveTab(tab: string): void {
 		if (this._activeTab === tab) return
 		this._activeTab = tab
-		if (tab === "cs-cli") {
-			getContextSyncService(false)?.resume()
-			this.postStateToWebview().catch((err) => {
-				this.log(`Failed to post state on wake from cs-cli tab: ${err}`, "error")
-			})
-		} else {
-			getContextSyncService(false)?.pause()
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (tab === "cs-cli") {
+		// 	getContextSyncService(false)?.resume()
+		// 	this.postStateToWebview().catch((err) => {
+		// 		this.log(`Failed to post state on wake from cs-cli tab: ${err}`, "error")
+		// 	})
+		// } else {
+		// 	getContextSyncService(false)?.pause()
+		// }
 	}
 
 	public get activeTab(): string {
@@ -2439,9 +2444,10 @@ export class ClineProvider
 	async postStateToWebview(options?: { force?: boolean }): Promise<void> {
 		// Suppress state pushes while the cs-cli tab is active to save resources,
 		// unless this is an explicit forced hydration for a newly launched webview.
-		if (this._activeTab === "cs-cli" && !options?.force) {
-			return
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (this._activeTab === "cs-cli" && !options?.force) {
+		// 	return
+		// }
 
 		// If force is true, execute immediately without batching
 		if (options?.force) {
@@ -2489,9 +2495,10 @@ export class ClineProvider
 	 *   `taskHistoryUpdated` / `taskHistoryItemUpdated`.
 	 */
 	async postStateToWebviewWithoutTaskHistory(): Promise<void> {
-		if (this._activeTab === "cs-cli") {
-			return
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (this._activeTab === "cs-cli") {
+		// 	return
+		// }
 
 		if (this.pendingStatePushWithoutHistory) {
 			return
@@ -2531,9 +2538,10 @@ export class ClineProvider
 	 */
 	async postStateToWebviewWithoutClineMessages(): Promise<void> {
 		// Suppress state pushes while the cs-cli tab is active to save resources
-		if (this._activeTab === "cs-cli") {
-			return
-		}
+		// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
+		// if (this._activeTab === "cs-cli") {
+		// 	return
+		// }
 		const state = await this.buildStateForWebview({ includeClineMessages: false, includeTaskHistory: false })
 		this.postMessageToWebview({ type: "state", state })
 
