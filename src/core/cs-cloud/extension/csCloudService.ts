@@ -154,7 +154,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 			this.ownership = "owned"
 			this.source = "spawned"
 
-			this.log(3, "bundledBin", `spawn: ${this.bundledBinPath} cloud start --port ${config.port}`)
+			this.log(3, "bundledBin", `spawn: ${this.bundledBinPath} cloud start --port ${config.port} --host 0.0.0.0`)
 			try {
 				await this.spawnBundledBinary(config.port)
 				this.log(3, "bundledBin", "进程已 spawn，等待 server_url 文件生成...")
@@ -163,7 +163,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 				this.log(3, "bundledBin", `spawn 失败: ${msg}`)
 			}
 
-			const url = await this.waitForServerUrlFile(30_000)
+			const url = await this.waitForServerUrlFile(5_000)
 			if (url) {
 				this.log(3, "bundledBin", `✓ server_url 就绪 → ${url}`)
 				return url
@@ -332,7 +332,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 				"vscode.workspace.workspaceFolders",
 				`${vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath).join(", ")}`,
 			)
-			const child = crossSpawn(this.bundledBinPath, ["start", "--port", String(port), "--host"], {
+			const child = crossSpawn(this.bundledBinPath, ["start", "--port", String(port), "--host", "0.0.0.0"], {
 				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
 				// detached: true,
 				// stdio: "ignore",
@@ -352,7 +352,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 
 	private async detectViaCliStatus(cscCliPath: string): Promise<string | undefined> {
 		try {
-			const output = await this.execCapture(cscCliPath, ["cloud", "status"], 30_000)
+			const output = await this.execCapture(cscCliPath, ["cloud", "status"], 15_000)
 			this.log(4, "cliStatus", `输出: ${output.slice(0, 200)}...`)
 
 			// 匹配 local_url: http://127.0.0.1:PORT
