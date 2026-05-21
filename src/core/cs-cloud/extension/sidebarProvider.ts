@@ -205,10 +205,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		}
 		// 2. 根据持久化状态渲染
 		switch (this.csCloudService.state) {
-			case "crashed":
-				webviewView.webview.html = getCrashedHtml(this.csCloudService.lastCrashReason)
-				return
-			case "failed":
+			case "error":
 				webviewView.webview.html = this.getErrorHtml(
 					this.csCloudService.startupFailureReason ??
 						this.csCloudService.lastCrashReason ??
@@ -218,7 +215,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			case "running":
 				await this.loadContent(webviewView)
 				return
-			case "starting":
+			case "loading":
 			case "idle":
 				webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
 				await this.loadContent(webviewView)
@@ -255,6 +252,21 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				},
 				() => this.csCloudService.ensureStarted(),
 			)
+
+			// In Remote SSH / dev-container scenarios, the webview runs on the
+			// local client while cs-cloud runs on the remote machine. A raw
+			// http://127.0.0.1 URL would resolve to the client's localhost,
+			// not the remote machine. vscode.env.asExternalUri tells VS Code to
+			// create a tunnel proxy URI so the webview can reach the remote
+			// cs-cloud through the SSH tunnel.
+			// In local (non-remote) scenarios this returns the original URI unchanged.
+			let tunneledBaseUrl = ""
+			if (vscode.env.remoteName) {
+				tunneledBaseUrl = (await vscode.env.asExternalUri(vscode.Uri.parse(baseUrl))).toString(true)
+				this.outputChannel.appendLine(
+					`Detected remote environment (${vscode.env.remoteName}), tunneling cs-cloud URL to ${tunneledBaseUrl}	`,
+				)
+			}
 			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
 
 			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
@@ -278,7 +290,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				const html = getAssistantUIIframeHtml(
 					webviewView.webview,
 					this.context,
-					baseUrl,
+					tunneledBaseUrl || baseUrl, // iframe 模式下必须使用 tunneledBaseUrl，确保远程环境可访问
 					config.webUrl,
 					workspaceDirectory,
 					accessToken ?? undefined,
@@ -294,7 +306,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				const html = getAssistantUIStaticHtml(
 					webviewView.webview,
 					this.context,
-					baseUrl,
+					tunneledBaseUrl || baseUrl,
 					workspaceDirectory,
 					accessToken ?? undefined,
 					costrictWebUrl,
@@ -316,51 +328,223 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
-	 <meta charset="UTF-8">
-	 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	 <style>
-	   body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); line-height: 1.5; }
-	   h3 { color: var(--vscode-errorForeground); margin-top: 0; }
-	   pre { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; overflow-x: auto; }
-	   .hint { margin-top: 12px; font-size: 0.9em; color: var(--vscode-descriptionForeground); }
-	   button { margin-top: 12px; padding: 6px 12px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; }
-	   button:hover { background: var(--vscode-button-hoverBackground); }
-	   button:disabled { opacity: 0.5; cursor: not-allowed; }
-	   .error-detail { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; overflow-x: auto; }
-	 </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoStrict Cloud</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      background: var(--vscode-editor-background);
+      color: var(--vscode-foreground);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .cs-card {
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      background: var(--vscode-sideBar-background, color-mix(in srgb, var(--vscode-editor-background) 97%, #888));
+      border: 1px solid var(--vscode-panel-border, rgba(127,127,127,0.18));
+      border-radius: 16px;
+      padding: 40px 28px 32px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      position: relative;
+      overflow: hidden;
+    }
+    .cs-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #094BFF, #0084FF, #00D6DE);
+      opacity: 0.6;
+    }
+    .cs-icon-wrap {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(9,75,255,0.08), rgba(0,132,255,0.08));
+      border: 1px solid rgba(9,75,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cs-icon-wrap svg {
+      width: 32px;
+      height: 32px;
+      stroke: var(--vscode-textLink-foreground, #388bfd);
+    }
+    .cs-brand {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .cs-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--vscode-foreground);
+      line-height: 1.4;
+    }
+    .cs-desc {
+      font-size: 13px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .cs-detail {
+      background: var(--vscode-textCodeBlock-background);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, monospace);
+      color: var(--vscode-descriptionForeground);
+      text-align: left;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 100px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      border: 1px solid var(--vscode-panel-border, rgba(127,127,127,0.1));
+    }
+    .cs-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .cs-btn {
+      padding: 8px 20px;
+      font-size: 13px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cs-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .cs-btn-primary {
+      background: linear-gradient(135deg, #094BFF, #0084FF);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(9,75,255,0.25);
+    }
+    .cs-btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(9,75,255,0.35);
+    }
+    .cs-btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .cs-auto-retry {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      min-height: 18px;
+    }
+  </style>
 </head>
 <body>
-	 <h3>CoStrict Cloud 启动失败</h3>
-	 <pre class="error-detail">${escapeHtml(message)}</pre>
-	 <p class="hint">请检查输出面板（Output → CoStrict）中的完整日志，或尝试重新登录 cs-cloud。</p>
-	 <button id="restart-btn" onclick="handleRestart()">重试</button>
-	 <script>
-	   const vscode = acquireVsCodeApi();
+  <div class="cs-card">
+    <div class="cs-icon-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+      </svg>
+    </div>
+    <div class="cs-brand">CoStrict Cloud</div>
+    <div class="cs-title">服务启动遇到问题</div>
+    <div class="cs-desc">后台服务未能正常启动，请稍等片刻，我们会自动尝试恢复。</div>
+    <pre class="cs-detail">${escapeHtml(message)}</pre>
+    <div class="cs-actions">
+      <button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
+        重新启动
+      </button>
+      <p class="cs-auto-retry" id="auto-retry-text"></p>
+    </div>
+  </div>
+  <script>
+    const vscode = acquireVsCodeApi();
+    const AUTO_RETRY_SECONDS = 10;
+    let countdown = AUTO_RETRY_SECONDS;
+    let countdownTimer = null;
+    let autoRetryEnabled = true;
 
-	   function handleRestart() {
-	     const btn = document.getElementById("restart-btn");
-	     if (btn) {
-	       btn.disabled = true;
-	       btn.textContent = "正在重启...";
-	     }
-	     vscode.postMessage({ type: "restartCsCloud" });
-	   }
+    function updateCountdownText() {
+      const el = document.getElementById("auto-retry-text");
+      if (el) {
+        el.textContent = countdown > 0 ? countdown + " 秒后自动重试…" : "";
+      }
+    }
 
-	   // 监听重启结果（由 SidebarProvider 回发）
-	   window.addEventListener("message", (e) => {
-	     if (e.data?.type === "restartFailed") {
-	       const btn = document.getElementById("restart-btn");
-	       if (btn) {
-	         btn.disabled = false;
-	         btn.textContent = "重试";
-	       }
-	       const detail = document.querySelector(".error-detail");
-	       if (detail) {
-	         detail.textContent = e.data.reason;
-	       }
-	     }
-	   });
-	 </script>
+    function startCountdown() {
+      countdown = AUTO_RETRY_SECONDS;
+      updateCountdownText();
+      countdownTimer = setInterval(function () {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+          if (autoRetryEnabled) {
+            handleRestart();
+          }
+          return;
+        }
+        updateCountdownText();
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      autoRetryEnabled = false;
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+      const el = document.getElementById("auto-retry-text");
+      if (el) el.textContent = "";
+    }
+
+    function handleRestart() {
+      stopCountdown();
+      const btn = document.getElementById("restart-btn");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在启动…';
+      }
+      vscode.postMessage({ type: "restartCsCloud" });
+    }
+
+    window.addEventListener("message", (e) => {
+      if (e.data?.type === "restartFailed") {
+        const btn = document.getElementById("restart-btn");
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> 重新启动';
+        }
+        const detail = document.querySelector(".cs-detail");
+        if (detail) {
+          detail.textContent = e.data.reason;
+        }
+        autoRetryEnabled = true;
+        startCountdown();
+      }
+    });
+
+    startCountdown();
+  </script>
 </body>
 </html>`
 	}
