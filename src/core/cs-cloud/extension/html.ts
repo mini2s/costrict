@@ -376,6 +376,7 @@ function getLoadingMarkup(logoSvg: string, loadingText = "正在初始化界面.
 /**
  * 崩溃错误页 HTML。
  * 包含「重试」按钮，通过 postMessage 与 SidebarProvider 交互。
+ * 若用户未手动点击重试，5 秒后自动触发重试。
  */
 export function getCrashedHtml(reason?: string): string {
 	return /* html */ `<!DOCTYPE html>
@@ -383,11 +384,11 @@ export function getCrashedHtml(reason?: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CoStrict Cloud - Crashed</title>
+  <title>CoStrict Cloud</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: var(--vscode-font-family, sans-serif);
+      font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
       background: var(--vscode-editor-background);
       color: var(--vscode-foreground);
       display: flex;
@@ -396,117 +397,209 @@ export function getCrashedHtml(reason?: string): string {
       min-height: 100vh;
       padding: 24px;
     }
-    .crash-card {
-      max-width: 400px;
+    .cs-card {
+      max-width: 380px;
       width: 100%;
       text-align: center;
+      background: var(--vscode-sideBar-background, color-mix(in srgb, var(--vscode-editor-background) 97%, #888));
+      border: 1px solid var(--vscode-panel-border, rgba(127,127,127,0.18));
+      border-radius: 16px;
+      padding: 40px 28px 32px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      position: relative;
+      overflow: hidden;
     }
-    .crash-icon {
-      width: 48px;
-      height: 48px;
-      margin: 0 auto 16px;
+    .cs-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #094BFF, #0084FF, #00D6DE);
+      opacity: 0.6;
     }
-    .crash-icon svg {
-      width: 100%;
-      height: 100%;
+    .cs-icon-wrap {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(9,75,255,0.08), rgba(0,132,255,0.08));
+      border: 1px solid rgba(9,75,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .crash-title {
-      font-size: 16px;
+    .cs-icon-wrap svg {
+      width: 32px;
+      height: 32px;
+      stroke: var(--vscode-textLink-foreground, #388bfd);
+    }
+    .cs-brand {
+      font-size: 13px;
       font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--vscode-errorForeground);
+      letter-spacing: 0.15em;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 12px;
+      text-transform: uppercase;
     }
-    .crash-desc {
+    .cs-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--vscode-foreground);
+      line-height: 1.4;
+    }
+    .cs-desc {
       font-size: 13px;
       color: var(--vscode-descriptionForeground);
       margin-bottom: 20px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
-    .crash-detail {
+    .cs-detail {
       background: var(--vscode-textCodeBlock-background);
-      border-radius: 4px;
+      border-radius: 8px;
       padding: 10px 12px;
-      font-size: 12px;
-      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 11.5px;
+      font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, monospace);
       color: var(--vscode-descriptionForeground);
       text-align: left;
       white-space: pre-wrap;
       word-break: break-all;
-      max-height: 120px;
+      max-height: 100px;
       overflow-y: auto;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
+      border: 1px solid var(--vscode-panel-border, rgba(127,127,127,0.1));
     }
-    .crash-actions {
+    .cs-actions {
       display: flex;
-      gap: 8px;
-      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
     }
-    .crash-btn {
-      padding: 6px 14px;
-      font-size: 12px;
+    .cs-btn {
+      padding: 8px 20px;
+      font-size: 13px;
       border: none;
-      border-radius: 2px;
+      border-radius: 8px;
       cursor: pointer;
-      font-family: var(--vscode-font-family, sans-serif);
-      transition: opacity 0.15s;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .crash-btn:disabled {
+    .cs-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .crash-btn-primary {
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
+    .cs-btn-primary {
+      background: linear-gradient(135deg, #094BFF, #0084FF);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(9,75,255,0.25);
     }
-    .crash-btn-primary:hover:not(:disabled) {
-      background: var(--vscode-button-hoverBackground);
+    .cs-btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(9,75,255,0.35);
+    }
+    .cs-btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .cs-auto-retry {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      min-height: 18px;
     }
   </style>
 </head>
 <body>
-  <div class="crash-card">
-    <div class="crash-icon">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="var(--vscode-errorForeground)">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+  <div class="cs-card">
+    <div class="cs-icon-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
       </svg>
     </div>
-    <div class="crash-title">CoStrict Cloud 服务已崩溃</div>
-    <div class="crash-desc">cs-cloud 进程意外退出，请尝试重启服务。</div>
-    ${reason ? `<pre class="crash-detail">${escapeHtml(reason)}</pre>` : ""}
-    <div class="crash-actions">
-      <button id="restart-btn" class="crash-btn crash-btn-primary" onclick="handleRestart()">重试</button>
+    <div class="cs-brand">CoStrict Cloud</div>
+    <div class="cs-title">服务暂时不可用</div>
+    <div class="cs-desc">后台服务已断开，正在尝试自动恢复连接。</div>
+    ${reason ? `<pre class="cs-detail">${escapeHtml(reason)}</pre>` : ""}
+    <div class="cs-actions">
+      <button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
+        重新连接
+      </button>
+      <p class="cs-auto-retry" id="auto-retry-text"></p>
     </div>
   </div>
   <script>
     const vscode = acquireVsCodeApi();
+    const AUTO_RETRY_SECONDS = 5;
+    let countdown = AUTO_RETRY_SECONDS;
+    let countdownTimer = null;
+    let autoRetryEnabled = true;
+
+    function updateCountdownText() {
+      const el = document.getElementById("auto-retry-text");
+      if (el) {
+        el.textContent = countdown > 0 ? countdown + " 秒后自动重试…" : "";
+      }
+    }
+
+    function startCountdown() {
+      countdown = AUTO_RETRY_SECONDS;
+      updateCountdownText();
+      countdownTimer = setInterval(function () {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+          if (autoRetryEnabled) {
+            handleRestart();
+          }
+          return;
+        }
+        updateCountdownText();
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      autoRetryEnabled = false;
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+      const el = document.getElementById("auto-retry-text");
+      if (el) el.textContent = "";
+    }
 
     function handleRestart() {
+      stopCountdown();
       const btn = document.getElementById("restart-btn");
       btn.disabled = true;
-      btn.textContent = "正在重启...";
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在连接…';
       vscode.postMessage({ type: "restartCsCloud" });
     }
 
-    // 监听重启结果（由 SidebarProvider 回发）
     window.addEventListener("message", (e) => {
       if (e.data?.type === "restartFailed") {
         const btn = document.getElementById("restart-btn");
         btn.disabled = false;
-        btn.textContent = "重试";
-        const detail = document.querySelector(".crash-detail");
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> 重新连接';
+        const detail = document.querySelector(".cs-detail");
         if (detail) {
           detail.textContent = e.data.reason;
         } else {
-          const desc = document.querySelector(".crash-desc");
-          if (desc) {
-            const pre = document.createElement("pre");
-            pre.className = "crash-detail";
-            pre.textContent = e.data.reason;
-            desc.after(pre);
-          }
+          const card = document.querySelector(".cs-card");
+          const pre = document.createElement("pre");
+          pre.className = "cs-detail";
+          pre.textContent = e.data.reason;
+          card.insertBefore(pre, document.querySelector(".cs-actions"));
         }
+        autoRetryEnabled = true;
+        startCountdown();
       }
     });
+
+    startCountdown();
   </script>
 </body>
 </html>`
@@ -544,8 +637,6 @@ export function getAssistantUIStaticHtml(
 	pluginSha?: string,
 	pluginBuildTime?: string,
 ): string {
-	console.log("getAssistantUIStaticHtml accessToken", accessToken)
-
 	const outDir = getAssistantUIStaticOutDir(context)
 	const indexPath = path.join(outDir, "index.html")
 
@@ -580,7 +671,7 @@ export function getAssistantUIStaticHtml(
 		`style-src ${webview.cspSource} 'unsafe-inline'`,
 		`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com data: blob:`,
 		`media-src ${webview.cspSource}`,
-		`script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com 'strict-dynamic'`,
+		`script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com`,
 		`connect-src ${webview.cspSource} ${csCloudOrigin} https://*.sangfor.com https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com`,
 	].join("; ")
 
@@ -591,6 +682,7 @@ export function getAssistantUIStaticHtml(
 	html = injectIntoHead(
 		html,
 		`<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}" />\n` +
+			`<style>${getLoadingStyles()}</style>\n` +
 			`<script nonce="${nonce}">
         window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)}; 
         window.__CS_CLOUD_WORKSPACE_DIRECTORY__ = ${JSON.stringify(workspaceDirectory)}; 
@@ -633,9 +725,53 @@ export function getAssistantUIStaticHtml(
         })();
     </script>`,
 	)
+
+	// 在 body 开头注入 loading 遮罩，避免 CSS 加载前的裸 HTML 闪烁（FOUC）
+	html = html.replace(
+		/(<body[^>]*>)/,
+		`$1\n${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Cloud...")}`,
+	)
+
+	// 注入 CSS 加载检测脚本，所有样式表就绪后自动隐藏 loading；5s 兜底超时
+	const hideLoadingScript = `<script nonce="${nonce}">
+(function(){
+  window.__ASSISTANT_UI_HIDE_LOADING__ = function () {
+    var loading = document.getElementById("cloud-ui-loading");
+    if (!loading) return;
+    loading.setAttribute("data-hidden", "true");
+    setTimeout(function () { loading.remove(); }, 180);
+  };
+  function waitForStyles() {
+    var links = document.querySelectorAll('link[rel="stylesheet"]');
+    var pending = links.length;
+    if (pending === 0) {
+      window.__ASSISTANT_UI_HIDE_LOADING__();
+      return;
+    }
+    function onDone() {
+      pending--;
+      if (pending <= 0) window.__ASSISTANT_UI_HIDE_LOADING__();
+    }
+    links.forEach(function(link){
+      if (link.sheet) { onDone(); }
+      else {
+        link.addEventListener("load", onDone);
+        link.addEventListener("error", onDone);
+      }
+    });
+    setTimeout(window.__ASSISTANT_UI_HIDE_LOADING__, 5000);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", waitForStyles);
+  } else {
+    waitForStyles();
+  }
+})();
+</script>`
+
 	// 注入表单状态持久化脚本，确保侧边栏拖拽后输入框内容不丢失
 	const stateScript = `<script nonce="${nonce}">${getFormStatePersistenceScript()}</script>`
-	html = injectBeforeBodyClose(html, stateScript)
+	html = injectBeforeBodyClose(html, hideLoadingScript + stateScript)
 	return html
 }
 
@@ -652,8 +788,6 @@ export function getAssistantUIIframeHtml(
 	pluginSha?: string,
 	pluginBuildTime?: string,
 ): string {
-	console.log("getAssistantUIIframeHtml accessToken", accessToken)
-
 	const nonce = getNonce()
 	const frameUrl = buildAssistantUIFrameUrl(
 		webUrl,
@@ -793,7 +927,6 @@ export function getAssistantUIIframeHtml(
           return;
         }
         if (event.data?.type === "FETCH_QUOTA") {
-          console.log("[iframe-wrapper] received FETCH_QUOTA from iframe, forwarding to VS Code", event.data);
           vscodeApi.postMessage({ type: "fetchQuota", baseUrl: event.data.baseUrl, token: event.data.token });
           return;
         }
@@ -826,7 +959,6 @@ export function getAssistantUIIframeHtml(
         return;
       }
       if (event.data?.type === "quotaResult") {
-        console.log("[iframe-wrapper] forwarding quotaResult to iframe", event.data);
         if (frame?.contentWindow) {
           frame.contentWindow.postMessage(event.data, frameOrigin);
         }

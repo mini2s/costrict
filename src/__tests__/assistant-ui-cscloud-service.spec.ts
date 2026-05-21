@@ -1,14 +1,35 @@
-import nock from "nock"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { EventEmitter } from "events"
-import { allowNetConnect } from "../vitest.setup"
+
+const { mockFs, mockSpawn, mockHomedir, mockHttp } = vi.hoisted(() => {
+	const mockHttp: Record<string, any> = {}
+	return {
+		mockFs: {
+			existsSync: vi.fn(),
+			readFileSync: vi.fn(),
+			writeFileSync: vi.fn(),
+			mkdirSync: vi.fn(),
+			watch: vi.fn(),
+		},
+		mockSpawn: { spawn: vi.fn(), execFile: vi.fn() },
+		mockHomedir: vi.fn(() => "/home/testuser"),
+		mockHttp,
+	}
+})
+
+vi.mock("fs", () => mockFs)
+vi.mock("os", () => ({ homedir: mockHomedir }))
+vi.mock("child_process", () => ({
+	spawn: (...args: any[]) => mockSpawn.spawn(...args),
+	execFile: (...args: any[]) => mockSpawn.execFile(...args),
+}))
+vi.mock("http", () => mockHttp)
 
 const { getConfigValues, setConfigValues } = vi.hoisted(() => {
-	let configValues: Record<string, unknown> = {}
+	let vals: Record<string, unknown> = {}
 	return {
-		getConfigValues: () => configValues,
+		getConfigValues: () => vals,
 		setConfigValues: (next: Record<string, unknown>) => {
-			configValues = next
+			vals = next
 		},
 	}
 })
@@ -18,304 +39,132 @@ vi.mock("vscode", () => ({
 		workspaceFolders: [{ uri: { fsPath: "/workspace" } }],
 		getConfiguration: vi.fn(() => ({
 			get: vi.fn((key: string, defaultValue: unknown) => {
-				const configValues = getConfigValues()
-				return key in configValues ? configValues[key] : defaultValue
+				const v = getConfigValues()
+				return key in v ? v[key] : defaultValue
 			}),
 		})),
 	},
 }))
 
-vi.mock("child_process", () => ({
-	spawn: vi.fn(),
-	execFile: vi.fn(),
-}))
-
 import { CsCloudService } from "../core/cs-cloud/extension/csCloudService"
-import { execFile, spawn } from "child_process"
 
 function createOutputChannel() {
 	return { appendLine: vi.fn() }
 }
 
-function mockSpawnProcess() {
-	vi.mocked(spawn).mockImplementation(() => {
-		const stdout = new EventEmitter()
-		const stderr = new EventEmitter()
-		return Object.assign(new EventEmitter(), {
-			stdout,
-			stderr,
-			killed: false,
-			kill: vi.fn(),
-		}) as unknown as import("child_process").ChildProcessWithoutNullStreams
+function resetMocks() {
+	vi.clearAllMocks()
+	setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: true, defaultCli: "csc" })
+	mockFs.existsSync.mockReturnValue(false)
+	mockFs.readFileSync.mockImplementation(() => {
+		throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
 	})
-}
-
-function mockExecReturn(stdout: string) {
-	vi.mocked(execFile).mockImplementation((cmd, args, options, callback) => {
-		if (typeof args === "function") {
-			callback = args
-		} else if (typeof options === "function") {
-			callback = options
-		}
-		if (callback) {
-			callback(null, stdout, "")
-		}
+	mockFs.watch.mockReturnValue({ close: vi.fn() })
+	mockHomedir.mockReturnValue("/home/testuser")
+	mockSpawn.spawn.mockReturnValue({ unref: vi.fn() })
+	mockSpawn.execFile.mockImplementation((...args: any[]) => {
+		const cb = args[args.length - 1]
+		if (typeof cb === "function") cb(new Error("not found"), "", "")
 		return undefined as any
 	})
 }
 
-function mockExecSequence(outputs: string[]) {
-	let callIndex = 0
-	vi.mocked(execFile).mockImplementation((cmd, args, options, callback) => {
-		if (typeof args === "function") {
-			callback = args
-		} else if (typeof options === "function") {
-			callback = options
+function mockHealthOk() {
+	mockHttp.get = vi.fn((_url: string, cb: (res: any) => void) => {
+		setTimeout(() => cb({ statusCode: 200, resume: vi.fn() }), 10)
+		return { setTimeout: vi.fn(), on: vi.fn(), destroy: vi.fn() }
+	})
+}
+
+function mockHealthDown() {
+	mockHttp.get = vi.fn((_url: string, _cb: (res: any) => void) => {
+		return {
+			setTimeout: vi.fn((_ms: number, fn: () => void) => setTimeout(fn, 10)),
+			on: vi.fn((ev: string, fn: () => void) => {
+				if (ev === "error") setTimeout(fn, 10)
+			}),
+			destroy: vi.fn(),
 		}
-		const stdout = outputs[callIndex++] ?? ""
-		if (callback) {
-			callback(null, stdout, "")
-		}
+	})
+}
+
+function setExecFileStdout(output: string) {
+	mockSpawn.execFile.mockImplementation((...args: any[]) => {
+		const cb = args[args.length - 1]
+		if (typeof cb === "function") cb(null, output, "")
 		return undefined as any
 	})
 }
 
-describe("CsCloudService", () => {
-	beforeEach(() => {
-		allowNetConnect("127.0.0.1")
-		vi.mocked(spawn).mockReset()
-		vi.mocked(execFile).mockReset()
-		setConfigValues({
-			baseUrl: "",
-			port: 45489,
-			autoStartCsCloud: false,
-		})
-		mockExecReturn("")
+function denyServerUrlFile() {
+	mockFs.readFileSync.mockImplementation(() => {
+		throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
 	})
+}
 
+function setServerUrlFile(raw: string) {
+	mockFs.readFileSync.mockReturnValue(raw)
+}
+
+describe("CsCloudService (refactored)", () => {
+	beforeEach(resetMocks)
 	afterEach(() => {
-		nock.cleanAll()
-		nock.disableNetConnect()
+		mockHttp.get = vi.fn()
 	})
 
-	it("returns a ready and OpenCode-compatible local base URL", async () => {
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:45489")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:45489/api/v1")
+	it("uses configured baseUrl directly", async () => {
+		setConfigValues({ baseUrl: "http://custom:8080/api/v1", port: 45489 })
+		const svc = new CsCloudService(createOutputChannel() as never)
+		await expect(svc.ensureStarted()).resolves.toBe("http://custom:8080/api/v1")
+		expect(svc.state).toBe("running")
 	})
 
-	it("fails clearly when an existing daemon lacks OpenCode-compatible routes", async () => {
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:45489")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(404, "404 page not found")
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).rejects.toThrow("is not OpenCode-compatible yet")
+	it("reads server_url file when it exists and health passes", async () => {
+		setServerUrlFile("http://127.0.0.1:59249")
+		mockHealthOk()
+		const svc = new CsCloudService(createOutputChannel() as never)
+		await expect(svc.ensureStarted()).resolves.toBe("http://127.0.0.1:59249/api/v1")
+		expect(svc.state).toBe("running")
 	})
 
-	it("uses detected port when cs-cloud is already running on a non-default port", async () => {
-		mockExecReturn(
-			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
-		)
-		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
-	})
-
-	it("waits for detected port to become ready instead of falling back to config.port", async () => {
-		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: false })
-		mockExecReturn(
-			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
-		)
-
-		let callCount = 0
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/runtime/health")
-			.reply(() => {
-				callCount++
-				return callCount === 1 ? [503, "Not Ready"] : [200, { ok: true }]
-			})
-			.persist()
-
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
-	})
-
-	it("falls back to default port when cs-cloud status command fails", async () => {
-		mockExecReturn("")
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:45489")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:45489/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
-	})
-
-	it("throws clear error when cs-cloud is not running and autoStartCsCloud is false", async () => {
-		mockExecReturn("")
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").replyWithError("connection refused")
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).rejects.toThrow("cs-cloud 没有运行")
-		expect(spawn).not.toHaveBeenCalled()
-	})
-
-	it("retries cs-cloud status detection before falling back", async () => {
-		mockExecSequence([
-			"",
-			"",
-			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
-		])
-
-		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
-	})
-
-	it("starts a managed daemon when restarting a detected unmanaged service", async () => {
-		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: false })
-		mockExecReturn(
-			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
-		)
-		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const outputChannel = createOutputChannel()
-		const service = new CsCloudService(outputChannel as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
-
-		// Simulate the detected service going down so restart() falls through to spawning
-		mockExecReturn("")
-
-		mockSpawnProcess()
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:45489")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		await expect(service.restart()).resolves.toBe("http://127.0.0.1:45489/api/v1")
-		expect(spawn).toHaveBeenCalledWith(
-			expect.stringMatching(/csc$/),
-			["cloud", "start", "--port", "45489"],
-			expect.objectContaining({ cwd: "/workspace" }),
-		)
-		expect(outputChannel.appendLine).toHaveBeenCalledWith(
-			"[AssistantUI] Restarting previously detected cs-cloud as a managed cs-cloud daemon...",
-		)
-		expect(outputChannel.appendLine).toHaveBeenCalledWith(
-			expect.stringMatching(/\[AssistantUI\] Starting cs-cloud: .*csc cloud start --port 45489/),
+	it("parses local_url from csc cloud status", async () => {
+		denyServerUrlFile()
+		setExecFileStdout("local_url: http://127.0.0.1:55555\nmode: cloud\n")
+		mockHealthOk()
+		const svc = new CsCloudService(createOutputChannel() as never)
+		await expect(svc.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
+		expect(svc.state).toBe("running")
+		expect(mockFs.writeFileSync).toHaveBeenCalledWith(
+			expect.stringContaining("server_url"),
+			"http://127.0.0.1:55555",
+			"utf-8",
 		)
 	})
 
-	it("adopts a new detected port when restarting after cs-cloud moved", async () => {
-		setConfigValues({ baseUrl: "", port: 46007, autoStartCsCloud: false })
-		mockExecReturn("")
-		nock("http://127.0.0.1:46007").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:46007")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		const service = new CsCloudService(createOutputChannel() as never)
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:46007/api/v1")
-
-		mockExecReturn(
-			"\x1b[1;38;2;125;86;244mcs-cloud status\x1b[m\n               \n\x1b[38;2;4;181;117m  ✓\x1b[m \x1b[38;2;4;181;117mRunning\x1b[m\n  \x1b[38;2;176;176;176mlocal_url:\x1b[m \x1b[38;2;255;255;255mhttp://127.0.0.1:55555\x1b[m\n",
-		)
-		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
-		nock("http://127.0.0.1:55555")
-			.get("/api/v1/conversations")
-			.query({ roots: "true", archived: "true" })
-			.reply(200, [])
-
-		await expect(service.restart()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-
-		// Sidebar reload calls ensureStarted() immediately after restart(); it should
-		// reuse the adopted port instead of probing/falling back to the old config port.
-		mockExecReturn("")
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
+	it("throws install prompt when nothing works", async () => {
+		denyServerUrlFile()
+		mockHealthDown()
+		mockFs.existsSync.mockReturnValue(false)
+		const svc = new CsCloudService(createOutputChannel() as never)
+		await expect(svc.ensureStarted()).rejects.toThrow("未检测到 cs-cloud")
+		expect(svc.state).toBe("failed")
 	})
 
-	it("keeps configured baseUrl unmanaged when restarting", async () => {
-		setConfigValues({ baseUrl: "http://127.0.0.1:55555/api/v1", port: 45489, autoStartCsCloud: true })
-		nock("http://127.0.0.1:55555").get("/api/v1/runtime/health").reply(200, { ok: true })
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		await expect(service.restart()).resolves.toBe("http://127.0.0.1:55555/api/v1")
-		expect(spawn).not.toHaveBeenCalled()
+	it("restart clears state and re-resolves", async () => {
+		setServerUrlFile("http://127.0.0.1:59249")
+		mockHealthOk()
+		const svc = new CsCloudService(createOutputChannel() as never)
+		await svc.ensureStarted()
+		expect(svc.state).toBe("running")
+		setServerUrlFile("http://127.0.0.1:60000")
+		await expect(svc.restart()).resolves.toBe("http://127.0.0.1:60000/api/v1")
 	})
 
-	it("reports underlying process error when cs-cloud exits with an error code", async () => {
-		setConfigValues({ baseUrl: "", port: 45489, autoStartCsCloud: true })
-		nock("http://127.0.0.1:45489").get("/api/v1/runtime/health").replyWithError("connection refused")
-
-		vi.mocked(spawn).mockImplementation(() => {
-			const stdout = new EventEmitter()
-			const stderr = new EventEmitter()
-			const child = Object.assign(new EventEmitter(), {
-				stdout,
-				stderr,
-				killed: false,
-				kill: vi.fn(),
-			}) as unknown as import("child_process").ChildProcessWithoutNullStreams
-
-			setTimeout(() => {
-				stderr.emit("data", " unauthorized device registration: device already belongs to another user\n")
-				child.emit("exit", 1, null)
-			}, 50)
-
-			return child
-		})
-
-		const service = new CsCloudService(createOutputChannel() as never)
-
-		await expect(service.ensureStarted()).rejects.toThrow(
-			"cs-cloud 启动失败: unauthorized device registration: device already belongs to another user",
-		)
-		expect(spawn).toHaveBeenCalled()
+	it("deduplicates concurrent ensureStarted calls", async () => {
+		setServerUrlFile("http://127.0.0.1:59249")
+		mockHealthOk()
+		const svc = new CsCloudService(createOutputChannel() as never)
+		const [a, b] = await Promise.all([svc.ensureStarted(), svc.ensureStarted()])
+		expect(a).toBe(b)
 	})
 })
