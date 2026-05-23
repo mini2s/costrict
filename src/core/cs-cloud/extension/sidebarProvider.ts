@@ -1,5 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
+import { execFile } from "child_process"
+import { promisify } from "util"
 import { CsCloudService } from "./csCloudService"
 import { openDiffView } from "./diffView"
 import { getAssistantUIConfig, type AssistantUIConfig } from "./config"
@@ -19,6 +21,43 @@ import { readCostrictAccessToken } from "../../costrict/runtime-config"
 
 export function getAssistantUIWorkspaceDirectory() {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+}
+
+const execFileAsync = promisify(execFile)
+
+async function getGitBranches(cwd: string): Promise<{ branches: string[]; current: string }> {
+	let branches: string[] = []
+	let current = ""
+
+	try {
+		const branchResult = await execFileAsync("git", ["branch", "--format=%(refname:short)"], { cwd })
+		branches = branchResult.stdout
+			.trim()
+			.split("\n")
+			.map((b) => b.trim())
+			.filter(Boolean)
+	} catch {
+		// git branch failed — likely not a git repo
+	}
+
+	try {
+		const currentResult = await execFileAsync("git", ["branch", "--show-current"], { cwd })
+		current = currentResult.stdout.trim()
+	} catch {
+		// git branch --show-current failed — HEAD may not exist
+	}
+
+	return { branches, current }
+}
+
+async function gitCheckout(cwd: string, branch: string): Promise<{ success: boolean; message: string }> {
+	try {
+		await execFileAsync("git", ["checkout", branch], { cwd })
+		return { success: true, message: `Checked out branch ${branch}` }
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		return { success: false, message: `Failed to checkout branch: ${message}` }
+	}
 }
 
 export function shouldUseAssistantUIIframe(context: vscode.ExtensionContext, config: AssistantUIConfig) {
@@ -187,6 +226,41 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 						webviewView.webview.postMessage({ type: "quotaResult", data: null })
 					}
 				}
+				if (message.type === "requestGitBranches") {
+					const cwd = (message as { directory?: string }).directory || getAssistantUIWorkspaceDirectory()
+					if (!cwd) {
+						webviewView.webview.postMessage({ type: "GIT_BRANCHES", branches: [], current: "" })
+						return
+					}
+					const result = await getGitBranches(cwd)
+					webviewView.webview.postMessage({
+						type: "GIT_BRANCHES",
+						branches: result.branches,
+						current: result.current,
+					})
+				}
+				if (message.type === "switchGitBranch") {
+					const msg = message as { branch?: string; directory?: string }
+					if (!msg.branch) return
+					const cwd = msg.directory || getAssistantUIWorkspaceDirectory()
+					if (!cwd) return
+					await gitCheckout(cwd, msg.branch)
+				}
+				if (message.type === "requestWorkspaceFolders") {
+					const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => ({
+						name: f.name,
+						path: f.uri.fsPath,
+					}))
+					webviewView.webview.postMessage({ type: "WORKSPACE_FOLDERS", folders })
+				}
+				if (message.type === "switchWorkspaceFolder") {
+					const msg = message as { path?: string }
+					if (!msg.path) return
+					webviewView.webview.postMessage({
+						type: "assistantUIContext",
+						context: { workspaceDirectory: msg.path },
+					})
+				}
 			},
 			null,
 			this.disposables,
@@ -285,8 +359,14 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					}
 				}
 			}
-			let accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
-
+			let accessToken: string | null = null
+			try {
+				accessToken = await CostrictAuthService.getInstance().getCurrentAccessToken()
+			} catch (error) {
+				this.outputChannel.appendLine(
+					`[AssistantUISidebarProvider] Failed to read access token from auth service: ${error}`,
+				)
+			}
 			// Fallback: if vscode token is cleared, read from ~/.costrict/share/auth.json
 			if (!accessToken) {
 				try {

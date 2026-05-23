@@ -269,14 +269,30 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// Pre-start cs-cloud daemon when in cloud mode so it's ready by the
 		// time the user opens the sidebar.
-		void csCloudService.ensureStarted().catch((err) => {
-			outputChannel.appendLine(
-				`[cs-cloud] auto-start failed: ${err instanceof Error ? err.message : String(err)}`,
-			)
-		})
-	}
+		void csCloudService.ensureStarted().catch(async (err) => {
+			const msg = err instanceof Error ? err.message : String(err)
+			outputChannel.appendLine(`[cs-cloud] auto-start failed: ${msg}`)
 
-	if (uiMode === "classic") {
+			// IDEA plugin: auto-fallback to classic mode when cloud fails.
+			// In VSCode the user sees the error page in the sidebar and can
+			// manually switch; in IDEA there is no when-clause filtering and
+			// both providers stack, so falling back is the safer default.
+			if (isJetbrainsPlatform()) {
+				outputChannel.appendLine(`[cs-cloud] JetBrains platform detected, auto-fallback to classic mode`)
+				void vscode.window.showWarningMessage(`CoStrict Cloud 启动失败 (${msg})，已自动回退到经典模式。`)
+				try {
+					await vscode.workspace
+						.getConfiguration(Package.commandIDPrefix)
+						.update("uiMode", "classic", vscode.ConfigurationTarget.Global)
+					await vscode.commands.executeCommand("setContext", "costrict.uiMode", "classic")
+				} catch (e) {
+					outputChannel.appendLine(`[cs-cloud] fallback write failed: ${e}`)
+				}
+				// Reload extension host to apply classic provider only
+				vscode.commands.executeCommand("workbench.action.reloadWindow")
+			}
+		})
+	} else if (uiMode === "classic") {
 		// Check for worktree auto-open path (set when switching to a worktree)
 		await checkWorktreeAutoOpen(context, outputChannel)
 
