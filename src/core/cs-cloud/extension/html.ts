@@ -721,6 +721,22 @@ export function getAssistantUIStaticHtml(
               v.postMessage({ type: "executeCommand", command: e.data.command });
               return;
             }
+            if (e.data?.type === "requestGitBranches") {
+              v.postMessage({ type: "requestGitBranches", directory: e.data.directory });
+              return;
+            }
+            if (e.data?.type === "switchGitBranch" && e.data.branch) {
+              v.postMessage({ type: "switchGitBranch", branch: e.data.branch, directory: e.data.directory });
+              return;
+            }
+            if (e.data?.type === "requestWorkspaceFolders") {
+              v.postMessage({ type: "requestWorkspaceFolders" });
+              return;
+            }
+            if (e.data?.type === "switchWorkspaceFolder" && e.data.path) {
+              v.postMessage({ type: "switchWorkspaceFolder", path: e.data.path });
+              return;
+            }
           });
         })();
     </script>`,
@@ -812,42 +828,6 @@ export function getAssistantUIIframeHtml(
 	].join("; ")
 
 	const diagnosticsStyle = debug ? "" : "display: none;"
-	const diagnosticsScript = debug
-		? `
-    const diagnostics = document.getElementById("cloud-ui-diagnostics");
-    const renderDiagnostics = (lines) => {
-      diagnostics.textContent = lines.join("
-");
-    };
-    const checkEndpoint = async (label, url) => {
-      try {
-        const response = await fetch(url, { cache: "no-store" });
-        return (label + ": " + response.status + " " + (response.statusText || "")).trim();
-      } catch (error) {
-        return label + ": failed - " + (error && error.message ? error.message : String(error));
-      }
-    };
-    (async () => {
-      const baseUrl = window.__CS_CLOUD_BASE_URL__;
-      renderDiagnostics([
-        "baseUrl: " + baseUrl,
-        "workspace: " + (window.__CS_CLOUD_WORKSPACE_DIRECTORY__ || "(none)"),
-        "iframe: " + window.__ASSISTANT_UI_FRAME_URL__,
-        "health: checking...",
-        "sessions: checking...",
-      ]);
-      const health = await checkEndpoint("health", baseUrl + "/runtime/health");
-      const sessions = await checkEndpoint("sessions", baseUrl + "/experimental/session?roots=true&archived=true");
-      renderDiagnostics([
-        "baseUrl: " + baseUrl,
-        "workspace: " + (window.__CS_CLOUD_WORKSPACE_DIRECTORY__ || "(none)"),
-        "iframe: " + window.__ASSISTANT_UI_FRAME_URL__,
-        health,
-        sessions,
-      ]);
-    })();`
-		: ""
-
 	return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -946,6 +926,22 @@ export function getAssistantUIIframeHtml(
           vscodeApi.postMessage({ type: "executeCommand", command: event.data.command });
           return;
         }
+        if (event.data?.type === "requestGitBranches") {
+          vscodeApi.postMessage({ type: "requestGitBranches", directory: event.data.directory });
+          return;
+        }
+        if (event.data?.type === "switchGitBranch" && event.data.branch) {
+          vscodeApi.postMessage({ type: "switchGitBranch", branch: event.data.branch, directory: event.data.directory });
+          return;
+        }
+        if (event.data?.type === "requestWorkspaceFolders") {
+          vscodeApi.postMessage({ type: "requestWorkspaceFolders" });
+          return;
+        }
+        if (event.data?.type === "switchWorkspaceFolder" && event.data.path) {
+          vscodeApi.postMessage({ type: "switchWorkspaceFolder", path: event.data.path });
+          return;
+        }
         return;
       }
 
@@ -964,6 +960,16 @@ export function getAssistantUIIframeHtml(
         }
       }
       if (event.data?.type === "theme") {
+        if (frame?.contentWindow) {
+          frame.contentWindow.postMessage(event.data, frameOrigin);
+        }
+      }
+      if (event.data?.type === "GIT_BRANCHES") {
+        if (frame?.contentWindow) {
+          frame.contentWindow.postMessage(event.data, frameOrigin);
+        }
+      }
+      if (event.data?.type === "WORKSPACE_FOLDERS") {
         if (frame?.contentWindow) {
           frame.contentWindow.postMessage(event.data, frameOrigin);
         }
