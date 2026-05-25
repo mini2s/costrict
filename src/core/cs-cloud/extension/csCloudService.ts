@@ -208,6 +208,10 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 	// ═══════════════════════════════════════════════════════════════
 
 	async restart(): Promise<string> {
+		if (this.startupFailureIsUninstallCsc) {
+			throw new Error(this.startupFailureReason ?? "未安装 csc")
+		}
+
 		this.log(0, "restart", "开始重启...")
 		this.stopWatching()
 		this.state = "loading"

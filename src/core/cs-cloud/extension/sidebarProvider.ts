@@ -192,6 +192,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					await this.loadContent(webviewView)
 				}
 				if (message.type === "restartCsCloud") {
+					if (this.csCloudService.startupFailureIsUninstallCsc) {
+						return
+					}
 					try {
 						await this.csCloudService.restart()
 						// 成功：重新加载 Cloud UI
@@ -578,10 +581,14 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
     <div class="cs-desc">${canRetry ? "后台服务未能正常启动，请稍等片刻，我们会自动尝试恢复。" : "未检测到 csc，请先按提示安装并启动 CoStrict Cloud。"}</div>
     <pre class="cs-detail">${escapeHtml(message)}</pre>
     <div class="cs-actions">
-      <button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
+      ${
+			canRetry
+				? `<button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
         重新启动
-      </button>
+      </button>`
+				: ""
+		}
       <p class="cs-auto-retry" id="auto-retry-text"></p>
     </div>
   </div>
@@ -666,6 +673,10 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	 * 如果 sidebar 已打开，restart 成功后重新加载内容。
 	 */
 	async restartCsCloud(): Promise<void> {
+		if (this.csCloudService.startupFailureIsUninstallCsc) {
+			throw new Error(this.csCloudService.startupFailureReason ?? "未安装 csc")
+		}
+
 		await this.csCloudService.restart()
 		this.cachedHtml = undefined
 		if (this.view) {
