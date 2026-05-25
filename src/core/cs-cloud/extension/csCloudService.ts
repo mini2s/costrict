@@ -36,6 +36,7 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 
 	lastCrashReason?: string
 	startupFailureReason?: string
+	startupFailureIsUninstallCsc = false
 
 	// ── 内部状态 ──
 	private baseUrl: string | undefined
@@ -98,12 +99,14 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 			this.state = "running"
 			this.lastCrashReason = undefined
 			this.startupFailureReason = undefined
+			this.startupFailureIsUninstallCsc = false
 			this.startWatching()
 			this.log(0, "ensureStarted", `✓ 启动成功 → ${url}`)
 			return url
 		} catch (err) {
 			this.state = "error"
 			this.startupFailureReason = err instanceof Error ? err.message : String(err)
+			this.startupFailureIsUninstallCsc = isUninstallCscError(err)
 			this.log(0, "ensureStarted", `✗ 启动失败: ${this.startupFailureReason}`)
 			throw err
 		} finally {
@@ -171,10 +174,16 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 			this.log(3, "bundledBin", "超时未生成 server_url，继续下一步")
 		}
 		// which
-		const cscCliPath = await which(config.defaultCli)
-
-		if (!cscCliPath) {
-			throw new Error("csc 未安装。安装命令: npm install -g @costrict/csc\n 安装 csc 后执行 csc cloud start")
+		let cscCliPath = ""
+		try {
+			cscCliPath = await which(config.defaultCli)
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err)
+			this.log(4, "cliStatus", `${msg}`)
+			const _err = new Error(`${msg}\n安装命令: npm install @costrict/csc -g\n安装 csc 后执行 csc cloud start`)
+			// @ts-ignore
+			_err["__IS_UNINSTALL_CSC_ERROR__"] = true
+			throw _err
 		}
 
 		// ── Step4: CLI status 命令 ──
@@ -199,10 +208,15 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 	// ═══════════════════════════════════════════════════════════════
 
 	async restart(): Promise<string> {
+		if (this.startupFailureIsUninstallCsc) {
+			throw new Error(this.startupFailureReason ?? "未安装 csc")
+		}
+
 		this.log(0, "restart", "开始重启...")
 		this.stopWatching()
 		this.state = "loading"
 		this.startupFailureReason = undefined
+		this.startupFailureIsUninstallCsc = false
 		this.lastCrashReason = undefined
 		this.baseUrl = undefined
 		this.operationPromise = undefined
@@ -212,12 +226,14 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 		try {
 			const url = await this.operationPromise
 			this.state = "running"
+			this.startupFailureIsUninstallCsc = false
 			this.startWatching()
 			this.log(0, "restart", `✓ 重启成功 → ${url}`)
 			return url
 		} catch (err) {
 			this.state = "error"
 			this.startupFailureReason = err instanceof Error ? err.message : String(err)
+			this.startupFailureIsUninstallCsc = isUninstallCscError(err)
 			this.log(0, "restart", `✗ 重启失败: ${this.startupFailureReason}`)
 			throw err
 		} finally {
@@ -418,6 +434,10 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 // ═══════════════════════════════════════════════════════════════════
 // 公共工具函数
 // ═══════════════════════════════════════════════════════════════════
+
+function isUninstallCscError(err: unknown): boolean {
+	return typeof err === "object" && err !== null && "__IS_UNINSTALL_CSC_ERROR__" in err
+}
 
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, "")
