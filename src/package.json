@@ -43,6 +43,8 @@
 		"ai",
 		"llama",
 		"roo code",
+		"zoo code",
+		"zoocode",
 		"roocode",
 		"costrict",
 		"costrict",
@@ -328,6 +330,12 @@
 				"icon": "assets/images/commitLogo.png"
 			},
 			{
+				"command": "costrict.reloadWebview",
+				"title": "%command.reloadWebview.title%",
+				"category": "%configuration.title%",
+				"icon": "$(refresh)"
+			},
+			{
 				"command": "costrict.coworkflow.updateSection",
 				"title": "Update Section",
 				"category": "Coworkflow"
@@ -469,6 +477,11 @@
 					"command": "costrict.popoutButtonClicked",
 					"group": "overflow@2",
 					"when": "view == costrict.SidebarProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
+					"group": "overflow@4",
+					"when": "view == costrict.SidebarProvider"
 				}
 			],
 			"editor/title": [
@@ -510,6 +523,11 @@
 				{
 					"command": "costrict.view.issue",
 					"group": "overflow@5",
+					"when": "activeWebviewPanelId == costrict.TabPanelProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
+					"group": "overflow@6",
 					"when": "activeWebviewPanelId == costrict.TabPanelProvider"
 				}
 			],
