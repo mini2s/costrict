@@ -277,7 +277,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// In VSCode the user sees the error page in the sidebar and can
 			// manually switch; in IDEA there is no when-clause filtering and
 			// both providers stack, so falling back is the safer default.
-			if (isJetbrainsPlatform()) {
+			if (isJetbrainsPlatform() && !csCloudService.startupFailureIsUninstallCsc) {
 				outputChannel.appendLine(`[cs-cloud] JetBrains platform detected, auto-fallback to classic mode`)
 				void vscode.window.showWarningMessage(`CoStrict Cloud 启动失败 (${msg})，已自动回退到经典模式。`)
 				try {
