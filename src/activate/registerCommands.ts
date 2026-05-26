@@ -23,7 +23,7 @@ import { handleGenerateCommitMessage } from "../core/costrict/commit"
 // import { getTerminalManager } from "../core/costrict/cli-wrap"
 import { getConfiguredUiMode, UiMode, UI_MODE_OPTIONS } from "../shared/uiMode"
 import type { AssistantUIContextMessage } from "../core/cs-cloud/extension/types"
-import { sendContextToCloudWithFocus } from "../core/cs-cloud/extension/contextBridge"
+import { sendContextToCloudWithFocus, reloadActiveCloudProvider } from "../core/cs-cloud/extension/contextBridge"
 import { CostrictAuthService } from "../core/costrict/auth"
 import { readCostrictAccessToken } from "../core/costrict/runtime-config"
 
@@ -115,11 +115,11 @@ async function applyUiMode(mode: UiMode, label: string) {
 	await vscode.workspace
 		.getConfiguration(Package.commandIDPrefix)
 		.update("uiMode", mode, vscode.ConfigurationTarget.Global)
-	await vscode.commands.executeCommand("setContext", "costrict.uiMode", mode)
+	await vscode.commands.executeCommand("setContext", `${Package.commandIDPrefix}.uiMode`, mode)
 	if (mode === "cloud") {
-		await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
 	} else {
-		await vscode.commands.executeCommand("costrict.SidebarProvider.focus")
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.SidebarProvider.focus`)
 	}
 	void vscode.window.showInformationMessage(`Switched to ${label}`)
 	await vscode.commands.executeCommand("workbench.action.reloadWindow")
@@ -355,6 +355,14 @@ export const getCommandsMap = ({
 		}
 	},
 	reloadWebview: async () => {
+		if (getConfiguredUiMode() === "cloud") {
+			if (await reloadActiveCloudProvider()) {
+				return
+			}
+			await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+			return
+		}
+
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 
 		if (!visibleProvider) {

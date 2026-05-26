@@ -65,7 +65,7 @@ export function shouldUseAssistantUIIframe(context: vscode.ExtensionContext, con
 }
 
 export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
-	public static readonly viewType = "costrict.AssistantUISidebarProvider"
+	public static readonly viewType = `${Package.commandIDPrefix}.AssistantUISidebarProvider`
 
 	private view?: vscode.WebviewView
 	private readonly csCloudService: CsCloudService
@@ -92,6 +92,15 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	 */
 	public postContextMessage(message: AssistantUIContextMessage): Thenable<boolean> | undefined {
 		return this.view?.webview.postMessage(message)
+	}
+
+	public async reloadAssistantUI() {
+		if (!this.view) {
+			return false
+		}
+		this.cachedHtml = undefined
+		await this.loadContent(this.view)
+		return true
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView) {

@@ -10,6 +10,7 @@ import { t } from "../../../i18n"
 import { singleCompletionHandler } from "../../../utils/single-completion-handler"
 import { truncateOutput } from "../../../integrations/misc/extract-text"
 import { excludedFileExtensions } from "../../../utils/costrictUtils"
+import { Package } from "shared/package"
 
 const execAsync = promisify(exec)
 
@@ -640,7 +641,7 @@ Rules:
 		}
 
 		// Get from VSCode configuration
-		const config = vscode.workspace.getConfiguration("costrict.commit")
+		const config = vscode.workspace.getConfiguration(`${Package.commandIDPrefix}.commit`)
 		const configuredLanguage = config.get<string>("language", "auto")
 
 		if (configuredLanguage !== "auto") {
