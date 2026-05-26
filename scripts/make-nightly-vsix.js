@@ -78,6 +78,14 @@ const patchTextFile = (filePath) => {
 	fs.writeFileSync(filePath, replaceText(fs.readFileSync(filePath, "utf8")))
 }
 
+const escapeXml = (value) =>
+	value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&apos;")
+
 const patchVsixManifest = (unpackDir) => {
 	const manifestPath = path.join(unpackDir, "extension.vsixmanifest")
 	let manifest = fs.readFileSync(manifestPath, "utf8")
@@ -85,6 +93,14 @@ const patchVsixManifest = (unpackDir) => {
 	manifest = manifest.replaceAll(`${nightlyName}-ai`, sourcePackage.publisher)
 	manifest = manifest.replace(/Publisher="[^"]+"/, `Publisher="${sourcePackage.publisher}"`)
 	manifest = manifest.replaceAll(`/${sourcePackage.publisher}-nightly.`, `/${sourcePackage.publisher}.`)
+	manifest = manifest.replace(
+		/<DisplayName>[^<]*<\/DisplayName>/,
+		`<DisplayName>${escapeXml(nightlyNls["extension.displayName.long"])}</DisplayName>`,
+	)
+	manifest = manifest.replace(
+		/<Description xml:space="preserve">[^<]*<\/Description>/,
+		`<Description xml:space="preserve">${escapeXml(nightlyNls["extension.description"])}</Description>`,
+	)
 	fs.writeFileSync(manifestPath, manifest)
 }
 
@@ -130,6 +146,7 @@ module.exports = {
 	cloneJson,
 	patchPackageJson,
 	patchRuntimeBundle,
+	patchVsixManifest,
 	replaceJsonDeep,
 	replaceText,
 }
