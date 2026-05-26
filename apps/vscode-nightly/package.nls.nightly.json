@@ -1,7 +1,11 @@
 {
-	"extension.displayName": "Roo Code Nightly",
-	"views.contextMenu.label": "Roo Code Nightly",
-	"views.terminalMenu.label": "Roo Code Nightly",
-	"views.activitybar.title": "Roo Code Nightly",
-	"configuration.title": "Roo Code Nightly"
+	"extension.displayName": "CoStrict Nightly",
+	"extension.displayName.long": "CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)",
+	"extension.description": "CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)",
+	"views.contextMenu.label": "CoStrict Nightly",
+	"views.terminalMenu.label": "CoStrict Nightly",
+	"views.activitybar.title": "CoStrict Nightly",
+	"configuration.title": "CoStrict Nightly",
+	"command.generateCommitMessage.title": "Generate Commit Message With CoStrict Nightly",
+	"views.sidebar.name": "CoStrict Nightly"
 }

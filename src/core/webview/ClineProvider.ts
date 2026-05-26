@@ -2194,7 +2194,7 @@ export class ClineProvider
 			return this.showTaskWithId(id)
 		}
 
-		await vscode.commands.executeCommand("costrict.openInNewTab", id)
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.openInNewTab`, id)
 	}
 
 	async exportTaskWithId(id: string) {

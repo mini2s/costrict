@@ -480,6 +480,11 @@
 				},
 				{
 					"command": "costrict.reloadWebview",
+					"group": "navigation@4",
+					"when": "view == costrict.AssistantUISidebarProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
 					"group": "overflow@4",
 					"when": "view == costrict.SidebarProvider"
 				}
@@ -529,6 +534,11 @@
 					"command": "costrict.reloadWebview",
 					"group": "overflow@6",
 					"when": "activeWebviewPanelId == costrict.TabPanelProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
+					"group": "overflow@6",
+					"when": "activeWebviewPanelId == costrict.AssistantUISidebarProvider"
 				}
 			],
 			"comments/commentThread/title": [
