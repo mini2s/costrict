@@ -634,6 +634,7 @@ export function getAssistantUIStaticHtml(
 	accessToken?: string,
 	costrictWebUrl?: string,
 	pluginVersion?: string,
+	commandIDPrefix?: string,
 	pluginSha?: string,
 	pluginBuildTime?: string,
 ): string {
@@ -686,6 +687,7 @@ export function getAssistantUIStaticHtml(
 			`<script nonce="${nonce}">
         window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)}; 
         window.__CS_CLOUD_WORKSPACE_DIRECTORY__ = ${JSON.stringify(workspaceDirectory)}; 
+        window.__CS_CLOUD_COMMAND_ID_PREFIX__ = ${JSON.stringify(commandIDPrefix || "costrict")}; 
         window.__ASSISTANT_UI_THEME__ = ${JSON.stringify(getAssistantUITheme())}; 
         window.__CS_CLOUD_ACCESS_TOKEN__ = ${JSON.stringify(accessToken || "")};
         window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};
@@ -801,6 +803,7 @@ export function getAssistantUIIframeHtml(
 	debug = false,
 	costrictWebUrl?: string,
 	pluginVersion?: string,
+	commandIDPrefix?: string,
 	pluginSha?: string,
 	pluginBuildTime?: string,
 ): string {
@@ -850,6 +853,7 @@ export function getAssistantUIIframeHtml(
     window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)};
     window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};
     window.__CS_CLOUD_WORKSPACE_DIRECTORY__ = ${JSON.stringify(workspaceDirectory)};
+    window.__CS_CLOUD_COMMAND_ID_PREFIX__ = ${JSON.stringify(commandIDPrefix || "costrict")};
     window.__CS_CLOUD_ACCESS_TOKEN__ = ${JSON.stringify(accessToken || "")};
     window.__ASSISTANT_UI_FRAME_URL__ = ${JSON.stringify(frameUrl)};
     window.__ASSISTANT_UI_THEME__ = ${JSON.stringify(getAssistantUITheme())};

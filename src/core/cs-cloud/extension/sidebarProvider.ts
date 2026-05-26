@@ -414,6 +414,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					config.debug,
 					costrictWebUrl,
 					pluginVersion,
+					Package.commandIDPrefix,
 					pluginSha,
 					pluginBuildTime,
 				)
@@ -431,6 +432,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					accessToken ?? undefined,
 					costrictWebUrl,
 					pluginVersion,
+					Package.commandIDPrefix,
 					pluginSha,
 					pluginBuildTime,
 				)
