@@ -26,6 +26,8 @@ const run = (command, args, options = {}) => {
 	}
 }
 
+const cloneJson = (value) => JSON.parse(JSON.stringify(value))
+
 const replaceText = (text) =>
 	text
 		.replaceAll(stableName, nightlyName)
@@ -59,6 +61,10 @@ const patchPackageJson = (unpackDir) => {
 	packageJson.name = nightlyName
 	packageJson.publisher = sourcePackage.publisher
 	packageJson.version = version
+	packageJson.author = cloneJson(sourcePackage.author)
+	packageJson.repository = cloneJson(sourcePackage.repository)
+	packageJson.homepage = sourcePackage.homepage
+	packageJson.keywords = sourcePackage.keywords
 	writeJson(packagePath, packageJson)
 }
 
@@ -90,25 +96,38 @@ const patchRuntimeBundle = (unpackDir) => {
 	fs.writeFileSync(bundlePath, bundle)
 }
 
-if (!fs.existsSync(stableVsix)) {
-	console.error(`Stable VSIX not found: ${stableVsix}`)
-	console.error("Run pnpm vsix first.")
-	process.exit(1)
+const main = () => {
+	if (!fs.existsSync(stableVsix)) {
+		console.error(`Stable VSIX not found: ${stableVsix}`)
+		console.error("Run pnpm vsix first.")
+		process.exit(1)
+	}
+
+	const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "costrict-nightly-vsix-"))
+
+	try {
+		run("unzip", ["-q", stableVsix, "-d", workDir])
+
+		patchPackageJson(workDir)
+		patchNls(workDir)
+		patchVsixManifest(workDir)
+		patchRuntimeBundle(workDir)
+
+		fs.rmSync(nightlyVsix, { force: true })
+		run("zip", ["-qr", nightlyVsix, "."], { cwd: workDir })
+		console.log(`Packaged nightly VSIX: ${nightlyVsix}`)
+	} finally {
+		fs.rmSync(workDir, { recursive: true, force: true })
+	}
 }
 
-const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "costrict-nightly-vsix-"))
+module.exports = {
+	cloneJson,
+	patchPackageJson,
+	replaceJsonDeep,
+	replaceText,
+}
 
-try {
-	run("unzip", ["-q", stableVsix, "-d", workDir])
-
-	patchPackageJson(workDir)
-	patchNls(workDir)
-	patchVsixManifest(workDir)
-	patchRuntimeBundle(workDir)
-
-	fs.rmSync(nightlyVsix, { force: true })
-	run("zip", ["-qr", nightlyVsix, "."], { cwd: workDir })
-	console.log(`Packaged nightly VSIX: ${nightlyVsix}`)
-} finally {
-	fs.rmSync(workDir, { recursive: true, force: true })
+if (require.main === module) {
+	main()
 }
