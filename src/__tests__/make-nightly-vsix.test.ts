@@ -2,7 +2,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-const { patchPackageJson } = require("../../scripts/make-nightly-vsix.js")
+const { patchPackageJson, patchRuntimeBundle } = require("../../scripts/make-nightly-vsix.js")
 
 describe("make-nightly-vsix patchPackageJson", () => {
 	let tempDir: string
@@ -51,5 +51,22 @@ describe("make-nightly-vsix patchPackageJson", () => {
 			url: "https://github.com/zgsm-ai/costrict",
 		})
 		expect(patchedPackage.homepage).toBe("https://github.com/zgsm-ai/costrict")
+	})
+
+	it("patches runtime Package metadata for nightly activation", () => {
+		const distDir = path.join(tempDir, "extension", "dist")
+		fs.mkdirSync(distDir, { recursive: true })
+		const bundlePath = path.join(distDir, "extension.js")
+		fs.writeFileSync(
+			bundlePath,
+			'name:process.env.COSTRICT_PKG_NAME||"zgsm",commandIDPrefix:process.env.COSTRICT_PKG_COMMAND_ID_PREFIX||"costrict",other:true',
+		)
+
+		patchRuntimeBundle(tempDir)
+
+		const patchedBundle = fs.readFileSync(bundlePath, "utf8")
+		expect(patchedBundle).toContain('name:"zgsm-nightly"')
+		expect(patchedBundle).toContain('commandIDPrefix:"costrict-nightly"')
+		expect(patchedBundle).not.toContain('name:process.env.COSTRICT_PKG_NAME||"zgsm"')
 	})
 })
