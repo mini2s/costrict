@@ -31,6 +31,7 @@ import { configCompletion } from "../base/common/constant"
 import { TelemetryService } from "@roo-code/telemetry"
 import { CodeCompletionError } from "../telemetry"
 import { TextAcceptanceAction } from "./utils/autocompleteLoggingService"
+import { Package } from "shared/package"
 
 export class InlineCompletionProvider implements InlineCompletionItemProvider {
 	private completionProvider: CompletionProvider
@@ -132,7 +133,7 @@ export class InlineCompletionProvider implements InlineCompletionItemProvider {
 		this.completionStatusBar.complete()
 		const autocompleteItem = new InlineCompletionItem(result.completion, new Range(position, position), {
 			title: "Log Autocomplete Outcome",
-			command: "costrict-completion.logAutocompleteOutcome",
+			command: `${Package.commandIDPrefix}-completion.logAutocompleteOutcome`,
 			arguments: [result.completionId, this.completionProvider],
 		})
 		// 返回 InlineCompletionItem

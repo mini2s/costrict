@@ -47,13 +47,12 @@ vi.mock("@src/components/settings/SettingsView", () => ({
 	},
 }))
 
-vi.mock("@src/components/costrict-cli/CostrictCliView", () => ({
+vi.mock("@src/components/code-review", () => ({
 	__esModule: true,
-	default: function CostrictCliView({ isHidden }: { isHidden: boolean }) {
+	default: function CodeReviewPage({ isHidden }: { isHidden: boolean }) {
 		return (
-			<div data-testid="costrict-cli-view" data-hidden={isHidden}>
-				Costrict CLI View
-				<button type="button">Restart CoStrict CLI</button>
+			<div data-testid="code-review-view" data-hidden={isHidden}>
+				Code Review View
 			</div>
 		)
 	},
@@ -300,7 +299,7 @@ describe("App", () => {
 		expect(screen.queryByTestId(`${view}-view`)).not.toBeInTheDocument()
 	})
 
-	it("shows the COSTRICT CLI tab label for zgsm provider", () => {
+	it("shows the agent and code review tabs for costrict provider", () => {
 		mockUseExtensionState.mockReturnValue(
 			createExtensionState({
 				apiConfiguration: {
@@ -311,56 +310,60 @@ describe("App", () => {
 
 		render(<AppWithProviders />)
 
-		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.cli" })).toBeInTheDocument()
-	})
-
-	it("shows the CLI tab for zgsm provider and activates the CLI tab on click", () => {
-		const setDidHydrateSClitate = vi.fn()
-		mockUseExtensionState.mockReturnValue(
-			createExtensionState({
-				apiConfiguration: {
-					apiProvider: "costrict",
-				},
-				setDidHydrateSClitate,
-			}),
-		)
-
-		render(<AppWithProviders />)
-
-		const cliTab = screen.getByRole("tab", { name: "common:costrictCli.tabs.cli" })
-		fireEvent.click(cliTab)
-
-		expect(setDidHydrateSClitate).toHaveBeenCalledWith(true)
-		expect(cliTab).toHaveAttribute("aria-selected", "true")
-	})
-
-	it("does not show the CLI tab for non-zgsm providers", () => {
-		render(<AppWithProviders />)
-
+		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.agent" })).toBeInTheDocument()
+		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.codeReview" })).toBeInTheDocument()
 		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.cli" })).not.toBeInTheDocument()
 	})
 
-	it("does not render the old App header actions when the CLI tab is active", async () => {
+	it("shows the code review tab for costrict provider and activates it on click", async () => {
 		mockUseExtensionState.mockReturnValue(
 			createExtensionState({
 				apiConfiguration: {
 					apiProvider: "costrict",
 				},
-				didHydrateCliState: true,
+			}),
+		)
+
+		render(<AppWithProviders />)
+
+		const codeReviewTab = screen.getByRole("tab", { name: "common:costrictCli.tabs.codeReview" })
+		fireEvent.click(codeReviewTab)
+
+		expect(codeReviewTab).toHaveAttribute("aria-selected", "true")
+		const codeReviewView = await screen.findByTestId("code-review-view")
+		expect(codeReviewView.getAttribute("data-hidden")).toBe("false")
+	})
+
+	it("does not show the costrict-only tabs for non-costrict providers", () => {
+		render(<AppWithProviders />)
+
+		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.agent" })).toBeInTheDocument()
+		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.codeReview" })).not.toBeInTheDocument()
+		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.cli" })).not.toBeInTheDocument()
+	})
+
+	it("does not render the old App header actions when the code review tab is active", async () => {
+		mockUseExtensionState.mockReturnValue(
+			createExtensionState({
+				apiConfiguration: {
+					apiProvider: "costrict",
+				},
 			}),
 		)
 
 		render(<AppWithProviders />)
 
 		act(() => {
-			triggerActionMessage("switchTab", { tab: "cs-cli" })
+			triggerActionMessage("switchTab", { tab: "codeReview" })
 		})
 
-		const cliView = await screen.findByTestId("costrict-cli-view")
-		expect(cliView.getAttribute("data-hidden")).toBe("false")
+		const codeReviewView = await screen.findByTestId("code-review-view")
+		expect(codeReviewView.getAttribute("data-hidden")).toBe("false")
 		expect(screen.queryByText("chat:startNewTask.title")).not.toBeInTheDocument()
-		expect(screen.queryByText("history:history")).not.toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Restart CoStrict CLI" })).toBeInTheDocument()
+		expect(document.querySelector(".codicon-add")).not.toBeInTheDocument()
+		expect(document.querySelector(".codicon-cloud")).not.toBeInTheDocument()
+		expect(document.querySelector(".codicon-question")).toBeInTheDocument()
+		expect(document.querySelector(".codicon-history")).toBeInTheDocument()
 	})
 
 	// todo: fix this test

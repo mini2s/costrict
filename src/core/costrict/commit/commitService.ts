@@ -3,6 +3,7 @@ import { CommitMessageGenerator } from "./commitGenerator"
 import type { CommitMessageSuggestion } from "./types"
 import type { ClineProvider } from "../../webview/ClineProvider"
 import { t } from "../../../i18n"
+import { Package } from "shared/package"
 
 /**
  * Service for handling commit-related operations in VSCode SCM
@@ -51,7 +52,7 @@ export class CommitService {
 					progress.report({ increment: 80 })
 
 					// Get configuration from VSCode settings
-					const config = vscode.workspace.getConfiguration("costrict.commit")
+					const config = vscode.workspace.getConfiguration(`${Package.commandIDPrefix}.commit`)
 					const useConventionalCommits = config.get<boolean>("useConventionalCommits", true)
 					const commitModelId = config.get<string>("commitModelId", "")
 					const maxLength = config.get<number>("maxLength", 150)

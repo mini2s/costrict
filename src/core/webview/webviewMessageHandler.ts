@@ -611,7 +611,7 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "switchUiMode": {
-			await vscode.commands.executeCommand("costrict.toggleUiMode")
+			await vscode.commands.executeCommand(`${Package.commandIDPrefix}.toggleUiMode`)
 			break
 		}
 		case "checkReviewSuggestion":

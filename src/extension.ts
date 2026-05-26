@@ -221,7 +221,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Determine UI mode and set context key for view visibility.
 	const uiMode = getConfiguredUiMode()
-	vscode.commands.executeCommand("setContext", "costrict.uiMode", uiMode)
+	vscode.commands.executeCommand("setContext", `${Package.commandIDPrefix}.uiMode`, uiMode)
 	outputChannel.appendLine(`[Extension] UI mode: ${uiMode}`)
 
 	// ClineProvider is always created for API compatibility and registered
@@ -253,7 +253,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// 注册 restart 命令（命令面板 + 错误页按钮）
 		context.subscriptions.push(
-			vscode.commands.registerCommand("costrict.restartCsCloud", async () => {
+			vscode.commands.registerCommand( `${Package.commandIDPrefix}.restartCsCloud`, async () => {
 				try {
 					await assistantProvider.restartCsCloud()
 				} catch (err) {
@@ -284,7 +284,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					await vscode.workspace
 						.getConfiguration(Package.commandIDPrefix)
 						.update("uiMode", "classic", vscode.ConfigurationTarget.Global)
-					await vscode.commands.executeCommand("setContext", "costrict.uiMode", "classic")
+					await vscode.commands.executeCommand("setContext", `${Package.commandIDPrefix}.uiMode`, "classic")
 				} catch (e) {
 					outputChannel.appendLine(`[cs-cloud] fallback write failed: ${e}`)
 				}

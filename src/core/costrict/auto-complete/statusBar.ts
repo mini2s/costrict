@@ -6,6 +6,7 @@ import {
 	OPENAI_REQUEST_ABORTED,
 } from "../base/common"
 import { t } from "../../../i18n"
+import { Package } from "shared/package"
 interface IFailError {
 	message?: string
 	status?: number
@@ -43,11 +44,11 @@ export class CompletionStatusBar {
 		context.subscriptions.push(
 			vscode.commands.registerCommand(statusBarCommand, handleStatusBarClick),
 			vscode.commands.registerCommand(
-				"costrict-completion.enable",
+				`${Package.commandIDPrefix}-completion.enable`,
 				statusUpdateCallback(() => this.setExtensionStatus(true), true),
 			),
 			vscode.commands.registerCommand(
-				"costrict-completion.disable",
+				`${Package.commandIDPrefix}-completion.disable`,
 				statusUpdateCallback(() => this.setExtensionStatus(false), false),
 			),
 		)
@@ -142,6 +143,6 @@ export class CompletionStatusBar {
 	private setExtensionStatus(enabled: boolean) {
 		const config = vscode.workspace.getConfiguration()
 		const target = vscode.ConfigurationTarget.Global
-		config.update("costrict-completion.enabled", enabled, target, false).then(console.error)
+		config.update(`${Package.commandIDPrefix}.completion.enabled`, enabled, target, false).then(console.error)
 	}
 }

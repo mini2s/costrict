@@ -1,8 +1,10 @@
 import * as vscode from "vscode"
 import type { AssistantUIContextMessage, SendContextResult } from "./types"
+import { Package } from "shared/package"
 
 interface CloudProvider {
 	postContextMessage(message: AssistantUIContextMessage): Thenable<boolean> | undefined
+	reloadAssistantUI?(): Promise<boolean>
 }
 
 let activeProvider: CloudProvider | undefined
@@ -99,6 +101,10 @@ function doSendContextMessage(message: AssistantUIContextMessage) {
 	}
 }
 
+export async function reloadActiveCloudProvider(): Promise<boolean> {
+	return (await activeProvider?.reloadAssistantUI?.()) ?? false
+}
+
 /**
  * 先聚焦 Cloud sidebar，再发送 context。
  * 应作为 Cloud 模式下 add-to-context 命令的统一入口。
@@ -106,7 +112,7 @@ function doSendContextMessage(message: AssistantUIContextMessage) {
  * 超时后不 queue——返回 "unavailable" 由调用方决定是否重试。
  */
 export async function sendContextToCloudWithFocus(message: AssistantUIContextMessage): Promise<SendContextResult> {
-	await vscode.commands.executeCommand("costrict.AssistantUISidebarProvider.focus")
+	await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus}`)
 	// 轮询等待 activeProvider 注册，超时 2s
 	const deadline = Date.now() + 2000
 	while (!activeProvider && Date.now() < deadline) {

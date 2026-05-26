@@ -1,3 +1,4 @@
+import { Package } from "shared/package"
 import * as vscode from "vscode"
 export interface AssistantUIConfig {
 	enabled: boolean
@@ -11,7 +12,7 @@ export interface AssistantUIConfig {
 }
 
 export function getAssistantUIConfig(): AssistantUIConfig {
-	const config = vscode.workspace.getConfiguration("costrict.assistantUI")
+	const config = vscode.workspace.getConfiguration(`${Package.commandIDPrefix}.assistantUI`)
 	return {
 		defaultCli: config.get<"csc" | "cs">("defaultCli", "csc"),
 		enabled: config.get<boolean>("enabled", true),
