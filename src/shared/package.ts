@@ -9,9 +9,11 @@ import { publisher, name, version } from "../package.json"
 export const Package = {
 	publisher,
 	name: process.env.COSTRICT_PKG_NAME || name,
-	commandIDPrefix: process.env.COSTRICT_PKG_COMMAND_ID_PREFIX || (name.includes("nightly") ? "costrict-nightly" : "costrict"),
+	commandIDPrefix:
+		process.env.COSTRICT_PKG_COMMAND_ID_PREFIX || (name.includes("nightly") ? "costrict-nightly" : "costrict"),
 	version: process.env.COSTRICT_PKG_VERSION || version,
-	outputChannel: process.env.COSTRICT_PKG_OUTPUT_CHANNEL || "CoStrict",
+	outputChannel:
+		process.env.COSTRICT_PKG_OUTPUT_CHANNEL || (name.includes("nightly") ? "Costrict-Nightly" : "CoStrict"),
 	sha: process.env.COSTRICT_PKG_SHA,
 	buildTime: process.env.COSTRICT_PKG_BUILD_TIME,
 } as const

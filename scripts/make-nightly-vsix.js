@@ -91,7 +91,12 @@ const patchVsixManifest = (unpackDir) => {
 const patchRuntimeBundle = (unpackDir) => {
 	const bundlePath = path.join(unpackDir, "extension", "dist", "extension.js")
 	let bundle = fs.readFileSync(bundlePath, "utf8")
-	bundle = bundle.replace(/commandIDPrefix:process\.env\.COSTRICT_PKG_COMMAND_ID_PREFIX\|\|[^,}]+/, 'commandIDPrefix:"costrict-nightly"')
+	bundle = bundle.replace(/name:process\.env\.COSTRICT_PKG_NAME\|\|[^,}]+/, 'name:"zgsm-nightly"')
+	bundle = bundle.replace(/name:"zgsm"/, 'name:"zgsm-nightly"')
+	bundle = bundle.replace(
+		/commandIDPrefix:process\.env\.COSTRICT_PKG_COMMAND_ID_PREFIX\|\|[^,}]+/,
+		'commandIDPrefix:"costrict-nightly"',
+	)
 	bundle = bundle.replace(/commandIDPrefix:"costrict"/, 'commandIDPrefix:"costrict-nightly"')
 	fs.writeFileSync(bundlePath, bundle)
 }
@@ -124,6 +129,7 @@ const main = () => {
 module.exports = {
 	cloneJson,
 	patchPackageJson,
+	patchRuntimeBundle,
 	replaceJsonDeep,
 	replaceText,
 }
