@@ -2,7 +2,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-const { patchPackageJson, patchRuntimeBundle } = require("../../scripts/make-nightly-vsix.js")
+const { patchPackageJson, patchRuntimeBundle, patchVsixManifest } = require("../../scripts/make-nightly-vsix.js")
 
 describe("make-nightly-vsix patchPackageJson", () => {
 	let tempDir: string
@@ -68,5 +68,33 @@ describe("make-nightly-vsix patchPackageJson", () => {
 		expect(patchedBundle).toContain('name:"zgsm-nightly"')
 		expect(patchedBundle).toContain('commandIDPrefix:"costrict-nightly"')
 		expect(patchedBundle).not.toContain('name:process.env.COSTRICT_PKG_NAME||"zgsm"')
+	})
+
+	it("patches VSIX manifest display metadata for Marketplace uniqueness", () => {
+		const manifestPath = path.join(tempDir, "extension.vsixmanifest")
+		fs.writeFileSync(
+			manifestPath,
+			`<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest>
+	<Metadata>
+		<Identity Language="en-US" Id="zgsm-nightly" Version="3.0.0" Publisher="zgsm-ai" />
+		<DisplayName>CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>
+		<Description xml:space="preserve">CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</Description>
+	</Metadata>
+</PackageManifest>`,
+		)
+
+		patchVsixManifest(tempDir)
+
+		const patchedManifest = fs.readFileSync(manifestPath, "utf8")
+		expect(patchedManifest).toContain(
+			"<DisplayName>CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>",
+		)
+		expect(patchedManifest).toContain(
+			'<Description xml:space="preserve">CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)</Description>',
+		)
+		expect(patchedManifest).not.toContain(
+			"<DisplayName>CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>",
+		)
 	})
 })
