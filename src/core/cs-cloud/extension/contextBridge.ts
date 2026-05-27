@@ -112,7 +112,7 @@ export async function reloadActiveCloudProvider(): Promise<boolean> {
  * 超时后不 queue——返回 "unavailable" 由调用方决定是否重试。
  */
 export async function sendContextToCloudWithFocus(message: AssistantUIContextMessage): Promise<SendContextResult> {
-	await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus}`)
+	await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
 	// 轮询等待 activeProvider 注册，超时 2s
 	const deadline = Date.now() + 2000
 	while (!activeProvider && Date.now() < deadline) {
