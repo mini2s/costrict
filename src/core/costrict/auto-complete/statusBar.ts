@@ -12,7 +12,7 @@ interface IFailError {
 	status?: number
 	[key: string]: any
 }
-const statusBarCommand = "costrict-statusBar.showInformationMessage"
+const statusBarCommand = `${Package.commandIDPrefix}-statusBar.showInformationMessage`
 export class CompletionStatusBar {
 	private static _instance: CompletionStatusBar
 	private _statusBar: vscode.StatusBarItem
