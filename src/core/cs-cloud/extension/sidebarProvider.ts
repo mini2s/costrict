@@ -173,6 +173,13 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				baseUrl?: string
 				token?: string
 				command?: string
+				requestId?: string
+				input?: string
+				init?: {
+					method?: string
+					headers?: Record<string, string>
+					body?: string
+				}
 			}) => {
 				if (message.type === "ASSISTANT_UI_READY") {
 					onCloudUiReady(cloudGen)
@@ -218,6 +225,41 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 							reason,
 						})
 					}
+				}
+				if (message.type === "proxyFetch" && message.requestId && message.input) {
+					try {
+						const response = await fetch(message.input, {
+							method: message.init?.method,
+							headers: message.init?.headers,
+							body: message.init?.body,
+						})
+						const headers: Record<string, string> = {}
+						response.headers.forEach((value, key) => {
+							headers[key] = value
+						})
+						const body = await response.text()
+						webviewView.webview.postMessage({
+							type: "proxyFetchResult",
+							requestId: message.requestId,
+							ok: response.ok,
+							status: response.status,
+							statusText: response.statusText,
+							headers,
+							body,
+						})
+					} catch (err) {
+						const reason = err instanceof Error ? err.message : String(err)
+						webviewView.webview.postMessage({
+							type: "proxyFetchResult",
+							requestId: message.requestId,
+							ok: false,
+							status: 599,
+							statusText: reason,
+							headers: {},
+							body: "",
+						})
+					}
+					return
 				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
 					try {
