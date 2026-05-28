@@ -673,7 +673,7 @@ export function getAssistantUIStaticHtml(
 		`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com data: blob:`,
 		`media-src ${webview.cspSource}`,
 		`script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com`,
-		`connect-src ${webview.cspSource} ${csCloudOrigin} https://*.sangfor.com https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com`,
+		`connect-src ${webview.cspSource} ${csCloudOrigin} https://*.sangfor.com http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com`,
 	].join("; ")
 
 	let html = fs.readFileSync(indexPath, "utf8")
@@ -696,8 +696,126 @@ export function getAssistantUIStaticHtml(
         window.__CS_CLOUD_BUILD_TIME__ = ${JSON.stringify(pluginBuildTime || "")};
 
         (function(){
+          var diagnosticPrefix = "[CoStrict Cloud UI]";
+          window.addEventListener("error", function (event) {
+            console.error(
+              diagnosticPrefix + " window.error",
+              event && event.message,
+              event && event.filename,
+              event && event.lineno,
+              event && event.colno,
+              event && event.error && (event.error.stack || event.error.message || event.error)
+            );
+          });
+          window.addEventListener("unhandledrejection", function (event) {
+            var reason = event && event.reason;
+            console.error(
+              diagnosticPrefix + " unhandledrejection",
+              reason && (reason.stack || reason.message || reason)
+            );
+          });
+          console.info(diagnosticPrefix + " bootstrap", {
+            baseUrl: window.__CS_CLOUD_BASE_URL__,
+            workspaceDirectory: window.__CS_CLOUD_WORKSPACE_DIRECTORY__,
+            hasAccessToken: !!window.__CS_CLOUD_ACCESS_TOKEN__,
+            userAgent: navigator.userAgent
+          });
+          var dumpCloudUiDomState = function(label) {
+            try {
+              var body = document.body;
+              var appRoot = document.querySelector('[data-slot="sidebar-wrapper"]') || document.querySelector('main') || body;
+              var bodyStyle = body ? window.getComputedStyle(body) : null;
+              var rootStyle = appRoot ? window.getComputedStyle(appRoot) : null;
+              console.info(diagnosticPrefix + " dom " + label, {
+                readyState: document.readyState,
+                bodyChildren: body ? body.children.length : -1,
+                bodyTextLength: body && body.innerText ? body.innerText.length : 0,
+                bodyClient: body ? [body.clientWidth, body.clientHeight] : null,
+                bodyScroll: body ? [body.scrollWidth, body.scrollHeight] : null,
+                bodyDisplay: bodyStyle && bodyStyle.display,
+                bodyVisibility: bodyStyle && bodyStyle.visibility,
+                bodyOpacity: bodyStyle && bodyStyle.opacity,
+                rootTag: appRoot && appRoot.tagName,
+                rootClass: appRoot && appRoot.className,
+                rootClient: appRoot ? [appRoot.clientWidth, appRoot.clientHeight] : null,
+                rootDisplay: rootStyle && rootStyle.display,
+                rootVisibility: rootStyle && rootStyle.visibility,
+                rootOpacity: rootStyle && rootStyle.opacity,
+                activeElement: document.activeElement && document.activeElement.tagName
+              });
+            } catch (error) {
+              console.error(diagnosticPrefix + " dom dump failed", error && (error.stack || error.message || error));
+            }
+          };
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function(){ dumpCloudUiDomState("dom-content-loaded"); });
+          } else {
+            dumpCloudUiDomState("bootstrap");
+          }
+          setTimeout(function(){ dumpCloudUiDomState("after-1s"); }, 1000);
+          setTimeout(function(){ dumpCloudUiDomState("after-3s"); }, 3000);
+          setTimeout(function(){ dumpCloudUiDomState("after-8s"); }, 8000);
           const v=acquireVsCodeApi();
           window.__VSCODE_API__=v;
+          const originalPostMessage = window.parent && window.parent.postMessage ? window.parent.postMessage.bind(window.parent) : null;
+          if (originalPostMessage) {
+            window.parent.postMessage = function(data, targetOrigin, transfer) {
+              if (data && data.type === "FETCH_QUOTA") {
+                v.postMessage({ type: "fetchQuota", baseUrl: data.baseUrl, token: data.token });
+                return;
+              }
+              return originalPostMessage(data, targetOrigin, transfer);
+            };
+          }
+          if (window.fetch) {
+            const originalFetch = window.fetch.bind(window);
+            let proxyFetchSeq = 0;
+            window.fetch = function(input, init) {
+              const url = typeof input === "string" ? input : input && input.url;
+              if (typeof url === "string" && (url.indexOf(window.__CS_CLOUD_BASE_URL__) === 0 || url.indexOf("/api/v1") >= 0)) {
+                console.info(diagnosticPrefix + " fetch", url);
+              }
+              const logFetchFailure = function(error) {
+                console.error(diagnosticPrefix + " fetch failed", url, error && (error.stack || error.message || error));
+                throw error;
+              };
+              if (typeof url === "string" && url.indexOf("sangfor.com") >= 0) {
+                return new Promise(function(resolve) {
+                  const requestId = "proxy-" + Date.now() + "-" + (++proxyFetchSeq);
+                  const headers = {};
+                  if (init && init.headers) {
+                    if (typeof init.headers.forEach === "function") {
+                      init.headers.forEach(function(value, key) { headers[key] = value; });
+                    } else {
+                      Object.assign(headers, init.headers);
+                    }
+                  }
+                  const handler = function(event) {
+                    if (event.data && event.data.type === "proxyFetchResult" && event.data.requestId === requestId) {
+                      window.removeEventListener("message", handler);
+                      resolve(new Response(event.data.body || "", {
+                        status: event.data.status || 200,
+                        statusText: event.data.statusText || "OK",
+                        headers: event.data.headers || {}
+                      }));
+                    }
+                  };
+                  window.addEventListener("message", handler);
+                  v.postMessage({
+                    type: "proxyFetch",
+                    requestId: requestId,
+                    input: url,
+                    init: {
+                      method: init && init.method,
+                      headers: headers,
+                      body: init && typeof init.body === "string" ? init.body : undefined
+                    }
+                  });
+                });
+              }
+              return originalFetch(input, init).catch(logFetchFailure);
+            };
+          }
           window.addEventListener("message",function(e){
             if (e.data?.type === "ASSISTANT_UI_READY") {
               v.postMessage({ type: "ASSISTANT_UI_READY" });
@@ -705,8 +823,8 @@ export function getAssistantUIStaticHtml(
             }
             if(e.data?.type==="FETCH_QUOTA"){
               v.postMessage({type:"fetchQuota",baseUrl:e.data.baseUrl,token:e.data.token});
+              return;
             }
-
             if (e.data?.type === "openExternal" && e.data.url) {
               v.postMessage({ type: "openExternal", url: e.data.url });
               return;
@@ -744,11 +862,8 @@ export function getAssistantUIStaticHtml(
     </script>`,
 	)
 
-	// 在 body 开头注入 loading 遮罩，避免 CSS 加载前的裸 HTML 闪烁（FOUC）
-	html = html.replace(
-		/(<body[^>]*>)/,
-		`$1\n${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Cloud...")}`,
-	)
+	// Keep the exported Next.js body unchanged before hydration. Injecting extra
+	// body nodes here can trigger React hydration error #418 in JCEF.
 
 	// 注入 CSS 加载检测脚本，所有样式表就绪后自动隐藏 loading；5s 兜底超时
 	const hideLoadingScript = `<script nonce="${nonce}">
