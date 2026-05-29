@@ -111,14 +111,14 @@ async function cloneAndCopy(cloneDir, index) {
 	])
 
 	async function removeExcludedFiles(dir) {
-		for (const file of excludeFiles) {
-			const filePath = path.join(dir, file)
-			try {
-				await fs.access(filePath)
+		const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+		for (const entry of entries) {
+			const filePath = path.join(dir, entry.name)
+			if (entry.isDirectory()) {
+				await removeExcludedFiles(filePath)
+			} else if (excludeFiles.has(entry.name)) {
 				await fs.rm(filePath)
 				console.log(`   ⚠ Removed excluded file: ${filePath}`)
-			} catch {
-				// File not present, skip
 			}
 		}
 	}

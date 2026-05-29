@@ -18,6 +18,7 @@ const nightlyVsix = path.join(binDir, `${nightlyName}-${version}.vsix`)
 
 const stablePrefix = "costrict"
 const nightlyPrefix = "costrict-nightly"
+const excludedBundledSkillFiles = new Set(["php_deserialization.md"])
 
 const run = (command, args, options = {}) => {
 	const result = spawnSync(command, args, { stdio: "inherit", shell: process.platform === "win32", ...options })
@@ -117,6 +118,22 @@ const patchRuntimeBundle = (unpackDir) => {
 	fs.writeFileSync(bundlePath, bundle)
 }
 
+const removeExcludedBundledSkillFiles = (dir) => {
+	if (!fs.existsSync(dir)) {
+		return
+	}
+
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+		const filePath = path.join(dir, entry.name)
+		if (entry.isDirectory()) {
+			removeExcludedBundledSkillFiles(filePath)
+		} else if (excludedBundledSkillFiles.has(entry.name)) {
+			fs.rmSync(filePath)
+			console.log(`Removed excluded bundled skill file: ${filePath}`)
+		}
+	}
+}
+
 const main = () => {
 	if (!fs.existsSync(stableVsix)) {
 		console.error(`Stable VSIX not found: ${stableVsix}`)
@@ -133,6 +150,7 @@ const main = () => {
 		patchNls(workDir)
 		patchVsixManifest(workDir)
 		patchRuntimeBundle(workDir)
+		removeExcludedBundledSkillFiles(path.join(workDir, "extension", "bundled-skills"))
 
 		fs.rmSync(nightlyVsix, { force: true })
 		run("zip", ["-qr", nightlyVsix, "."], { cwd: workDir })
@@ -147,6 +165,7 @@ module.exports = {
 	patchPackageJson,
 	patchRuntimeBundle,
 	patchVsixManifest,
+	removeExcludedBundledSkillFiles,
 	replaceJsonDeep,
 	replaceText,
 }

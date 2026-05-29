@@ -2,7 +2,12 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-const { patchPackageJson, patchRuntimeBundle, patchVsixManifest } = require("../../scripts/make-nightly-vsix.js")
+const {
+	patchPackageJson,
+	patchRuntimeBundle,
+	patchVsixManifest,
+	removeExcludedBundledSkillFiles,
+} = require("../../scripts/make-nightly-vsix.js")
 
 describe("make-nightly-vsix patchPackageJson", () => {
 	let tempDir: string
@@ -41,7 +46,7 @@ describe("make-nightly-vsix patchPackageJson", () => {
 
 		expect(patchedPackage.name).toBe("zgsm-nightly")
 		expect(patchedPackage.publisher).toBe("zgsm-ai")
-		expect(patchedPackage.version).toBe("3.0.0")
+		expect(patchedPackage.version).toBe("3.0.3")
 		expect(patchedPackage.displayName).toBe("CoStrict Nightly")
 		expect(patchedPackage.description).toBe("nightly build for costrict-nightly")
 		expect(patchedPackage.command).toBe("costrict-nightly.openPanel")
@@ -96,5 +101,27 @@ describe("make-nightly-vsix patchPackageJson", () => {
 		expect(patchedManifest).not.toContain(
 			"<DisplayName>CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>",
 		)
+	})
+
+	it("removes Marketplace-flagged bundled skill files recursively", () => {
+		const languageDir = path.join(
+			tempDir,
+			"extension",
+			"bundled-skills",
+			"en",
+			"security-review",
+			"knowledge",
+			"languages",
+		)
+		fs.mkdirSync(languageDir, { recursive: true })
+		const excludedFile = path.join(languageDir, "php_deserialization.md")
+		const retainedFile = path.join(languageDir, "python.md")
+		fs.writeFileSync(excludedFile, "excluded")
+		fs.writeFileSync(retainedFile, "retained")
+
+		removeExcludedBundledSkillFiles(path.join(tempDir, "extension", "bundled-skills"))
+
+		expect(fs.existsSync(excludedFile)).toBe(false)
+		expect(fs.existsSync(retainedFile)).toBe(true)
 	})
 })
