@@ -34,6 +34,7 @@ import { type ApiMessage } from "../task-persistence/apiMessages"
 import { saveTaskMessages } from "../task-persistence"
 
 import { ClineProvider } from "./ClineProvider"
+import { RemoteAgentInstaller } from "../costrict/remote-agent-installer"
 import { handleCheckpointRestoreOperation } from "./checkpointRestoreHandler"
 import { generateErrorDiagnostics } from "./diagnosticsHandler"
 import {
@@ -2177,6 +2178,10 @@ export const webviewMessageHandler = async (
 			break
 		case "upsertApiConfiguration":
 			if (message.text && message.apiConfiguration) {
+				//costrict: read old costrictBaseUrl before saving (trimmed, empty-string normalized)
+				const oldConfig = (await provider.getState()).apiConfiguration
+				const oldBaseUrl = oldConfig?.costrictBaseUrl?.trim() || ""
+
 				if (message.apiConfiguration.apiProvider === "costrict") {
 					await provider.providerSettingsManager.saveMergeConfig(
 						{
@@ -2195,6 +2200,18 @@ export const webviewMessageHandler = async (
 						message.apiConfiguration?.costrictAccessToken,
 						message.apiConfiguration?.costrictRefreshToken,
 					)
+				}
+
+				//costrict: read new costrictBaseUrl after saving (trimmed, empty-string normalized)
+				const newConfig = (await provider.getState()).apiConfiguration
+				const newBaseUrl = newConfig?.costrictBaseUrl?.trim() || ""
+
+				//costrict: trigger reinstall only when base_url changed
+				if (oldBaseUrl !== newBaseUrl) {
+					provider.log(
+						`[webviewMessageHandler] costrictBaseUrl changed ("${oldBaseUrl}" → "${newBaseUrl}"), triggering remote agent install`,
+					)
+					void RemoteAgentInstaller.getInstance().triggerManualInstall()
 				}
 			}
 			break

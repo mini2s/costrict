@@ -20,6 +20,7 @@ import { EditorContext, EditorUtils } from "../integrations/editor/EditorUtils"
 import * as path from "path"
 import { handleGenerateCommitMessage } from "../core/costrict/commit"
 import { getTerminalManager } from "../core/costrict/cli-wrap"
+import { RemoteAgentInstaller } from "../core/costrict/remote-agent-installer"
 
 interface UriSource {
 	path: string
@@ -372,6 +373,24 @@ export const getCommandsMap = ({
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			vscode.window.showErrorMessage(`Failed to generate commit message: ${errorMessage}`)
 			return undefined
+		}
+	},
+	// costrict: register remote agent installer commands
+	// Notifications are handled inside RemoteAgentInstaller.triggerManualInstall()
+	installAgentPackage: async () => {
+		const installer = RemoteAgentInstaller.getInstance()
+		await installer.triggerManualInstall()
+	},
+	uninstallAgentPackage: async () => {
+		const installer = RemoteAgentInstaller.getInstance()
+		const result = await installer.triggerManualUninstall()
+		const name = installer.getPackageName()
+		if (result.success) {
+			void vscode.window.showInformationMessage(t("remoteAgentInstaller:info.uninstalled", { name }))
+		} else {
+			void vscode.window.showErrorMessage(
+				t("remoteAgentInstaller:error.uninstallFailed", { name, reason: result.reason }),
+			)
 		}
 	},
 })
