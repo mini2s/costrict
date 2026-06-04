@@ -41,6 +41,7 @@ vi.mock("fs", () => ({
 vi.mock("../litellm")
 vi.mock("../openrouter")
 vi.mock("../requesty")
+vi.mock("../costrict")
 
 // Mock ContextProxy with a simple static instance
 vi.mock("../../../core/config/ContextProxy", () => ({
@@ -61,10 +62,12 @@ import { getModels, getModelsFromCache } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
 import { getOpenRouterModels } from "../openrouter"
 import { getRequestyModels } from "../requesty"
+import { getCostrictModels } from "../costrict"
 
 const mockGetLiteLLMModels = getLiteLLMModels as Mock<typeof getLiteLLMModels>
 const mockGetOpenRouterModels = getOpenRouterModels as Mock<typeof getOpenRouterModels>
 const mockGetRequestyModels = getRequestyModels as Mock<typeof getRequestyModels>
+const mockGetCostrictModels = getCostrictModels as Mock<typeof getCostrictModels>
 
 const DUMMY_REQUESTY_KEY = "requesty-key-for-testing"
 
@@ -292,6 +295,48 @@ describe("empty cache protection", () => {
 
 			expect(result).toEqual(mockModels)
 			expect(mockSet).toHaveBeenCalledWith("openrouter", mockModels)
+		})
+
+		it("returns disk cache immediately and triggers background refresh when refreshOnDiskCacheHit is enabled", async () => {
+			const diskModels = {
+				"costrict/disk-model": {
+					maxTokens: 4096,
+					contextWindow: 128000,
+					supportsPromptCache: false,
+					description: "Disk cached model",
+				},
+			}
+			const refreshedApiModels = [
+				{
+					id: "costrict/fresh-model",
+					maxTokens: 8192,
+					contextWindow: 256000,
+					supportsPromptCache: true,
+					description: "Fresh model",
+				},
+			]
+			const refreshedModels = {
+				"costrict/fresh-model": refreshedApiModels[0],
+			}
+
+			mockGet.mockReturnValueOnce(undefined).mockReturnValueOnce(diskModels)
+			vi.mocked(fsSync.existsSync).mockReturnValue(true)
+			vi.mocked(fsSync.readFileSync).mockReturnValue(JSON.stringify(diskModels))
+			mockGetCostrictModels.mockResolvedValue(refreshedApiModels)
+
+			const result = await getModels({
+				provider: "costrict",
+				baseUrl: "https://api.example.com",
+				apiKey: "test-api-key",
+				refreshOnDiskCacheHit: true,
+			})
+
+			expect(result).toEqual(diskModels)
+			expect(mockGetCostrictModels).toHaveBeenCalledWith("https://api.example.com", "test-api-key", undefined)
+
+			await vi.waitFor(() => {
+				expect(mockSet).toHaveBeenCalledWith("costrict", refreshedModels)
+			})
 		})
 	})
 

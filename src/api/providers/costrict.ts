@@ -925,6 +925,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 						provider: "costrict",
 						baseUrl: `${this.options.costrictBaseUrl?.trim() || CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()}`,
 						apiKey: this.options.costrictAccessToken,
+						refreshOnDiskCacheHit: true,
 					})
 				)[id] ?? costrictModels.default
 
