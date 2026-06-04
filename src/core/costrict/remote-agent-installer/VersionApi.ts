@@ -18,6 +18,14 @@ function isValidSemVer(version: string): boolean {
 	return /^\d+\.\d+\.\d+$/.test(version)
 }
 
+function shouldRetryVersionError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return true
+	}
+
+	return !error.message.includes("HTTP 404")
+}
+
 export class VersionApi {
 	/**
 	 * Fetch the latest resource package version from the server with retry.
@@ -42,14 +50,22 @@ export class VersionApi {
 				return await this.fetchLatestVersion()
 			} catch (error: any) {
 				lastError = error
+
+				if (!shouldRetryVersionError(error)) {
+					logger.warn(
+						`${LOG_PREFIX} Version check failed without retry: ${error instanceof Error ? error.message : String(error)}`,
+					)
+					throw error
+				}
+
 				if (attempt < VERSION_MAX_RETRIES - 1) {
 					logger.warn(
-						`${LOG_PREFIX} Version check attempt ${attempt + 1}/${VERSION_MAX_RETRIES} failed: ${error.message}, retrying in ${VERSION_RETRY_DELAYS_MS[attempt]}ms`,
+						`${LOG_PREFIX} Version check attempt ${attempt + 1}/${VERSION_MAX_RETRIES} failed: ${error instanceof Error ? error.message : String(error)}, retrying in ${VERSION_RETRY_DELAYS_MS[attempt]}ms`,
 					)
 					await delay(VERSION_RETRY_DELAYS_MS[attempt])
 				} else {
 					logger.warn(
-						`${LOG_PREFIX} Version check failed after ${VERSION_MAX_RETRIES} attempts: ${error.message}`,
+						`${LOG_PREFIX} Version check failed after ${VERSION_MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`,
 					)
 				}
 			}

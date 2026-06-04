@@ -13,15 +13,10 @@ type SkillSource = SkillMetadata["source"]
  */
 export async function handleRequestSkills(provider: ClineProvider): Promise<SkillMetadata[]> {
 	try {
-		const skillsManager = provider.getSkillsManager()
-		if (skillsManager) {
-			const skills = skillsManager.getSkillsMetadata()
-			await provider.postMessageToWebview({ type: "skills", skills })
-			return skills
-		} else {
-			await provider.postMessageToWebview({ type: "skills", skills: [] })
-			return []
-		}
+		const skillsManager = await provider.ensureSkillsManager()
+		const skills = skillsManager.getSkillsMetadata()
+		await provider.postMessageToWebview({ type: "skills", skills })
+		return skills
 	} catch (error) {
 		provider.log(`Error fetching skills: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
 		await provider.postMessageToWebview({ type: "skills", skills: [] })
@@ -47,10 +42,7 @@ export async function handleCreateSkill(
 			throw new Error(t("skills:errors.missing_create_fields"))
 		}
 
-		const skillsManager = provider.getSkillsManager()
-		if (!skillsManager) {
-			throw new Error(t("skills:errors.manager_unavailable"))
-		}
+		const skillsManager = await provider.ensureSkillsManager()
 
 		const createdPath = await skillsManager.createSkill(skillName, source, skillDescription, modeSlugs)
 
@@ -86,10 +78,7 @@ export async function handleDeleteSkill(
 			throw new Error(t("skills:errors.missing_delete_fields"))
 		}
 
-		const skillsManager = provider.getSkillsManager()
-		if (!skillsManager) {
-			throw new Error(t("skills:errors.manager_unavailable"))
-		}
+		const skillsManager = await provider.ensureSkillsManager()
 
 		await skillsManager.deleteSkill(skillName, source, skillMode)
 
@@ -122,10 +111,7 @@ export async function handleMoveSkill(
 			throw new Error(t("skills:errors.missing_move_fields"))
 		}
 
-		const skillsManager = provider.getSkillsManager()
-		if (!skillsManager) {
-			throw new Error(t("skills:errors.manager_unavailable"))
-		}
+		const skillsManager = await provider.ensureSkillsManager()
 
 		await skillsManager.moveSkill(skillName, source, currentMode, newMode)
 
@@ -157,10 +143,7 @@ export async function handleUpdateSkillModes(
 			throw new Error(t("skills:errors.missing_update_modes_fields"))
 		}
 
-		const skillsManager = provider.getSkillsManager()
-		if (!skillsManager) {
-			throw new Error(t("skills:errors.manager_unavailable"))
-		}
+		const skillsManager = await provider.ensureSkillsManager()
 
 		await skillsManager.updateSkillModes(skillName, source, newModeSlugs)
 
@@ -188,10 +171,7 @@ export async function handleOpenSkillFile(provider: ClineProvider, message: Webv
 			throw new Error(t("skills:errors.missing_delete_fields"))
 		}
 
-		const skillsManager = provider.getSkillsManager()
-		if (!skillsManager) {
-			throw new Error(t("skills:errors.manager_unavailable"))
-		}
+		const skillsManager = await provider.ensureSkillsManager()
 
 		// Find skill by name and source (skills may have modeSlugs arrays now)
 		const skill = skillsManager.findSkillByNameAndSource(skillName, source)

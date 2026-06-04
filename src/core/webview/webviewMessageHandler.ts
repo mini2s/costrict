@@ -113,8 +113,10 @@ import { showFileDiffFromGitStatus } from "../../utils/costrictUtils"
 import { ReviewTargetType } from "../../shared/codeReview"
 import { getRawTaskReporter } from "../costrict/telemetry"
 import { handleQueryMcpAsyncTask } from "../../services/mcp/asyncPolling/handleQueryMessage"
+import { createLogger } from "../../utils/logger"
 
 let webviewDidLaunchTimer: NodeJS.Timeout | undefined
+const REMOTE_AGENT_INSTALLER_START_DELAY_MS = 3_000
 
 export const webviewMessageHandler = async (
 	provider: ClineProvider,
@@ -672,127 +674,142 @@ export const webviewMessageHandler = async (
 			break
 		}
 		case "webviewDidLaunch": {
-			// Load custom modes first
-			const customModes = await provider.customModesManager.getCustomModes()
-			await updateGlobalState("customModes", customModes)
+			try {
+				// Load custom modes first
+				const customModes = await provider.customModesManager.getCustomModes()
+				await updateGlobalState("customModes", customModes)
 
-			provider.postStateToWebview({ force: true })
-			provider.workspaceTracker?.initializeFilePaths() // Don't await.
+				provider.postStateToWebview({ force: true })
+				provider.workspaceTracker?.initializeFilePaths() // Don't await.
 
-			getTheme().then((theme) => provider.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) }))
+				getTheme().then((theme) =>
+					provider.postMessageToWebview({ type: "theme", text: JSON.stringify(theme) }),
+				)
 
-			// If MCP Hub is already initialized, update the webview with
-			// current server list.
-			const mcpHub = provider.getMcpHub()
+				// If MCP Hub is already initialized, update the webview with
+				// current server list.
+				const mcpHub = provider.getMcpHub()
 
-			if (mcpHub) {
-				provider.postMessageToWebview({ type: "mcpServers", mcpServers: mcpHub.getAllServers() })
+				if (mcpHub) {
+					provider.postMessageToWebview({ type: "mcpServers", mcpServers: mcpHub.getAllServers() })
+				}
+
+				provider.providerSettingsManager
+					.listConfig()
+					.then(async (listApiConfig) => {
+						if (!listApiConfig) {
+							return
+						}
+
+						if (listApiConfig.length === 1) {
+							// Check if first time init then sync with exist config.
+							if (!checkExistKey(listApiConfig[0])) {
+								const { apiConfiguration } = await provider.getState()
+
+								// Only save if the current configuration has meaningful settings
+								// (e.g., API keys). This prevents saving a default "anthropic"
+								// fallback when no real config exists, which can happen during
+								// CLI initialization before provider settings are applied.
+								if (checkExistKey(apiConfiguration)) {
+									await provider.providerSettingsManager.saveConfig(
+										listApiConfig[0].name ?? "default",
+										apiConfiguration,
+									)
+
+									listApiConfig[0].apiProvider = apiConfiguration.apiProvider
+								}
+							}
+						}
+
+						const currentConfigName = getGlobalState("currentApiConfigName")
+
+						if (currentConfigName) {
+							if (!(await provider.providerSettingsManager.hasConfig(currentConfigName))) {
+								// Current config name not valid, get first config in list.
+								const name = listApiConfig[0]?.name
+								await updateGlobalState("currentApiConfigName", name)
+
+								if (name) {
+									await provider.activateProviderProfile({ name })
+									return
+								}
+							}
+						}
+
+						await Promise.all([
+							updateGlobalState("listApiConfigMeta", listApiConfig),
+							provider.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
+						])
+					})
+					.catch((error) =>
+						provider.log(
+							`Error list api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+						),
+					)
+
+				// Enable telemetry by default (when unset) or when explicitly enabled
+				provider.getStateToPostToWebview().then((state) => {
+					const { telemetrySetting } = state
+					const isOptedIn = telemetrySetting !== "disabled"
+					TelemetryService.instance.updateTelemetryState(isOptedIn)
+				})
+				clearTimeout(webviewDidLaunchTimer)
+				webviewDidLaunchTimer = setTimeout(() => {
+					void initNotificationService(provider)
+
+					setTimeout(() => {
+						try {
+							RemoteAgentInstaller.getInstance(provider.context).scheduleBackgroundCheck()
+						} catch (error: any) {
+							createLogger(Package.outputChannel).channel.appendLine(
+								`[RemoteAgentInstaller] Failed to start deferred background check: ${error instanceof Error ? error.message : String(error)}`,
+							)
+						}
+					}, REMOTE_AGENT_INSTALLER_START_DELAY_MS)
+
+					// Deferred background work — only needed once the webview is ready
+					void flushModels(
+						{
+							provider: "costrict",
+							baseUrl: provider.getValue("costrictBaseUrl"),
+						},
+						true,
+						(models: ModelRecord) => {
+							const openAiModels = [] as string[]
+							const fullResponseData = [] as ModelInfo[]
+							for (const [id, value] of Object.entries(models)) {
+								openAiModels.push(id)
+								fullResponseData.push(value)
+							}
+							provider.postMessageToWebview({
+								type: "costrictModels",
+								openAiModels,
+								fullResponseData,
+							})
+						},
+					)
+
+					void provider.getState().then((state) => {
+						void ensureProjectWikiSubtasksExists(state.language ?? "en")
+					})
+
+					void provider.getState().then((state) => {
+						void installGitHubSkills(provider.context, state.language ?? "zh-CN")
+							.then(() => provider.log("[BuiltinSkills] Bundled skills installed"))
+							.catch((error) =>
+								provider.log(
+									`[BuiltinSkills] Failed to install: ${error instanceof Error ? error.message : String(error)}`,
+								),
+							)
+					})
+					// Perform auto cleanup shortly after startup so initial webview rendering is not blocked.
+					void provider?.performAutoCleanup?.().then(() => {
+						provider.log("Auto cleanup check completed on startup")
+					})
+				}, 500)
+			} finally {
+				provider.isViewLaunched = true
 			}
-
-			provider.providerSettingsManager
-				.listConfig()
-				.then(async (listApiConfig) => {
-					if (!listApiConfig) {
-						return
-					}
-
-					if (listApiConfig.length === 1) {
-						// Check if first time init then sync with exist config.
-						if (!checkExistKey(listApiConfig[0])) {
-							const { apiConfiguration } = await provider.getState()
-
-							// Only save if the current configuration has meaningful settings
-							// (e.g., API keys). This prevents saving a default "anthropic"
-							// fallback when no real config exists, which can happen during
-							// CLI initialization before provider settings are applied.
-							if (checkExistKey(apiConfiguration)) {
-								await provider.providerSettingsManager.saveConfig(
-									listApiConfig[0].name ?? "default",
-									apiConfiguration,
-								)
-
-								listApiConfig[0].apiProvider = apiConfiguration.apiProvider
-							}
-						}
-					}
-
-					const currentConfigName = getGlobalState("currentApiConfigName")
-
-					if (currentConfigName) {
-						if (!(await provider.providerSettingsManager.hasConfig(currentConfigName))) {
-							// Current config name not valid, get first config in list.
-							const name = listApiConfig[0]?.name
-							await updateGlobalState("currentApiConfigName", name)
-
-							if (name) {
-								await provider.activateProviderProfile({ name })
-								return
-							}
-						}
-					}
-
-					await Promise.all([
-						await updateGlobalState("listApiConfigMeta", listApiConfig),
-						await provider.postMessageToWebview({ type: "listApiConfig", listApiConfig }),
-					])
-				})
-				.catch((error) =>
-					provider.log(
-						`Error list api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
-					),
-				)
-
-			// Enable telemetry by default (when unset) or when explicitly enabled
-			provider.getStateToPostToWebview().then((state) => {
-				const { telemetrySetting } = state
-				const isOptedIn = telemetrySetting !== "disabled"
-				TelemetryService.instance.updateTelemetryState(isOptedIn)
-			})
-			provider.isViewLaunched = true
-			clearTimeout(webviewDidLaunchTimer)
-			webviewDidLaunchTimer = setTimeout(() => {
-				void initNotificationService(provider)
-
-				// Deferred background work — only needed once the webview is ready
-				void flushModels(
-					{
-						provider: "costrict",
-						baseUrl: provider.getValue("costrictBaseUrl"),
-					},
-					true,
-					(models: ModelRecord) => {
-						const openAiModels = [] as string[]
-						const fullResponseData = [] as ModelInfo[]
-						for (const [id, value] of Object.entries(models)) {
-							openAiModels.push(id)
-							fullResponseData.push(value)
-						}
-						provider.postMessageToWebview({
-							type: "costrictModels",
-							openAiModels,
-							fullResponseData,
-						})
-					},
-				)
-
-				void provider.getState().then((state) => {
-					void ensureProjectWikiSubtasksExists(state.language ?? "en")
-				})
-
-				void provider.getState().then((state) => {
-					void installGitHubSkills(provider.context, state.language ?? "zh-CN")
-						.then(() => provider.log("[BuiltinSkills] Bundled skills installed"))
-						.catch((error) =>
-							provider.log(
-								`[BuiltinSkills] Failed to install: ${error instanceof Error ? error.message : String(error)}`,
-							),
-						)
-				})
-				// Perform auto cleanup shortly after startup so initial webview rendering is not blocked.
-				void provider?.performAutoCleanup?.().then(() => {
-					provider.log("Auto cleanup check completed on startup")
-				})
-			}, 500)
 			break
 		}
 		case "newTask":

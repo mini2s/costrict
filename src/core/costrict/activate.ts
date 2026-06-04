@@ -231,17 +231,6 @@ export async function activate(
 	setTimeout(() => {
 		loginTip()
 	}, 2000)
-
-	// costrict: start remote agent installer background check after CostrictAuthApi.setProvider()
-	// has been called (inside initialize()), so that getApiConfiguration() can read the user's
-	// costrictBaseUrl from the provider state instead of falling back to an empty string.
-	try {
-		RemoteAgentInstaller.getInstance(context).scheduleBackgroundCheck()
-	} catch (error: any) {
-		outputChannel.appendLine(
-			`[RemoteAgentInstaller] Failed to start background check: ${error instanceof Error ? error.message : String(error)}`,
-		)
-	}
 }
 
 /**
