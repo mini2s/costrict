@@ -3479,7 +3479,9 @@ export class ClineProvider
 		try {
 			await skillsManager.initialize()
 		} catch (error) {
+			this.skillsManager = undefined
 			this.log(`Failed to initialize Skills Manager: ${error}`)
+			throw error
 		}
 		return skillsManager
 	}

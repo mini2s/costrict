@@ -186,14 +186,14 @@ export function convertToZAiFormat(
 				}
 
 				// Use reasoning from content blocks if not provided at top level
-				const finalReasoning = reasoningContent || extractedReasoning
+				const finalReasoning = reasoningContent || extractedReasoning || ""
 
 				const assistantMessage: ZAiAssistantMessage = {
 					role: "assistant",
 					content: textParts.length > 0 ? textParts.join("\n") : null,
 					...(toolCalls.length > 0 && { tool_calls: toolCalls }),
 					// Preserve reasoning_content for Z.ai interleaved thinking
-					...(finalReasoning && { reasoning_content: finalReasoning }),
+					...(finalReasoning != null && { reasoning_content: finalReasoning }),
 				}
 
 				// Check if we can merge with the last message (only if no tool calls)
@@ -223,14 +223,14 @@ export function convertToZAiFormat(
 						lastMessage.content = message.content
 					}
 					// Preserve reasoning_content from the new message if present
-					if (reasoningContent) {
+					if (reasoningContent != null) {
 						;(lastMessage as ZAiAssistantMessage).reasoning_content = reasoningContent
 					}
 				} else {
 					const assistantMessage: ZAiAssistantMessage = {
 						role: "assistant",
 						content: message.content,
-						...(reasoningContent && { reasoning_content: reasoningContent }),
+						...(reasoningContent != null && { reasoning_content: reasoningContent }),
 					}
 					result.push(assistantMessage)
 				}

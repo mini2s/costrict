@@ -80,6 +80,11 @@ export class RemoteAgentInstaller {
 	}
 
 	scheduleBackgroundCheck(): void {
+		if (this.isDisposed) {
+			logger.info(`${LOG_PREFIX} scheduleBackgroundCheck skipped, installer disposed`)
+			return
+		}
+		logger.info(`${LOG_PREFIX} scheduleBackgroundCheck started`)
 		const run = async () => {
 			try {
 				await this.performBackgroundCheck()
