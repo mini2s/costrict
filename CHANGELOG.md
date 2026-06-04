@@ -2,6 +2,12 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [2.8.10]
+
+- Add `.claude` directory support for skill discovery (#1266)
+- Revert remote agent installer and related commands (#1267)
+- Recover `refreshOnDiskCacheHit` option for model fetching and caching (#1269)
+
 ## [2.8.8]
 
 - Add remote agent installation support (#1258)
