@@ -70,8 +70,6 @@ export const commandIds = [
 	"toggleAutoApprove",
 	"generateCommitMessage",
 	"reloadWebview",
-	"installAgentPackage",
-	"uninstallAgentPackage",
 ] as const
 
 export const costrictCommandIds = [
