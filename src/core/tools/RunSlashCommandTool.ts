@@ -56,7 +56,11 @@ export class RunSlashCommandTool extends BaseTool<"run_slash_command"> {
 
 			if (!command) {
 				const currentMode = state?.mode ?? "code"
-				const skillsManager = provider?.getSkillsManager()
+				const skillsManager = provider ? await provider.ensureSkillsManager() : undefined
+				if (!skillsManager) {
+					pushToolResult(formatResponse.toolError("Skills Manager not available"))
+					return
+				}
 				const skillContent = await resolveSkillContentForMode(skillsManager, commandName, currentMode)
 
 				if (skillContent) {
