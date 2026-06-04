@@ -29,6 +29,11 @@ export class SkillsManager {
 	private providerRef: WeakRef<ClineProvider>
 	private disposables: vscode.Disposable[] = []
 	private isDisposed = false
+	private discovering = false
+	private skillsSnapshot = ""
+	private pollTimer: ReturnType<typeof setInterval> | undefined
+
+	private static readonly POLL_INTERVAL_MS = 5_000
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
@@ -37,6 +42,7 @@ export class SkillsManager {
 	async initialize(): Promise<void> {
 		await this.discoverSkills()
 		await this.setupFileWatchers()
+		this.startPolling()
 	}
 
 	/**
@@ -47,11 +53,53 @@ export class SkillsManager {
 	 * - .roo/skills/[dirname] can be a symlink to a skill directory
 	 */
 	async discoverSkills(): Promise<void> {
-		this.skills.clear()
-		const skillsDirs = await this.getSkillsDirectories()
+		if (this.discovering || this.isDisposed) return
+		this.discovering = true
+		try {
+			this.skills.clear()
+			const skillsDirs = await this.getSkillsDirectories()
 
-		for (const { dir, source, mode } of skillsDirs) {
-			await this.scanSkillsDirectory(dir, source, mode)
+			for (const { dir, source, mode } of skillsDirs) {
+				if (this.isDisposed) return
+				await this.scanSkillsDirectory(dir, source, mode)
+			}
+
+			if (this.isDisposed) return
+
+			// Notify webview if it's already launched
+			await this.notifyWebview()
+		} finally {
+			this.discovering = false
+		}
+	}
+
+	private static hashKeys(keys: IterableIterator<string>): string {
+		let hash = 5381
+		for (const key of keys) {
+			for (let i = 0; i < key.length; i++) {
+				hash = (hash << 5) + hash + key.charCodeAt(i)
+			}
+		}
+		return (hash >>> 0).toString(36)
+	}
+
+	/**
+	 * Push the current skills list to the webview, if available.
+	 */
+	private async notifyWebview(): Promise<void> {
+		const snapshot = SkillsManager.hashKeys(this.skills.keys())
+		if (snapshot === this.skillsSnapshot) return
+		this.skillsSnapshot = snapshot
+
+		const provider = this.providerRef.deref()
+		if (!provider?.isViewLaunched) return
+		try {
+			await provider.postMessageToWebview({
+				type: "skills",
+				skills: this.getSkillsMetadata(),
+			})
+		} catch {
+			// Webview might not be ready — non-critical
 		}
 	}
 
@@ -756,8 +804,31 @@ Add your skill instructions here.
 		this.disposables.push(watcher)
 	}
 
+	/**
+	 * Periodically rediscover skills to catch filesystem changes made outside VS Code
+	 * (e.g., manual edits, git clones, symlink changes that file watchers might miss).
+	 */
+	private startPolling(): void {
+		if (this.pollTimer) return
+		this.pollTimer = setInterval(() => {
+			if (this.isDisposed || this.discovering) return
+			this.discoverSkills().catch(() => {
+				// Polling failures are non-critical — swallow to keep the loop alive
+			})
+		}, SkillsManager.POLL_INTERVAL_MS)
+	}
+
+	private stopPolling(): void {
+		if (this.pollTimer) {
+			clearInterval(this.pollTimer)
+			this.pollTimer = undefined
+		}
+	}
+
 	async dispose(): Promise<void> {
 		this.isDisposed = true
+		this.discovering = false
+		this.stopPolling()
 		this.disposables.forEach((d) => d.dispose())
 		this.disposables = []
 		this.skills.clear()

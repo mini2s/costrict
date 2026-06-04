@@ -69,6 +69,12 @@ describe("skillsMessageHandler", () => {
 			log: mockLog,
 			postMessageToWebview: mockPostMessageToWebview,
 			getSkillsManager: () => skillsManager,
+			ensureSkillsManager: async () => {
+				if (!skillsManager) {
+					throw new Error("Skills manager not available")
+				}
+				return skillsManager
+			},
 		} as unknown as ClineProvider
 	}
 
