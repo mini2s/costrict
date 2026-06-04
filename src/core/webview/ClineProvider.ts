@@ -2520,14 +2520,6 @@ export class ClineProvider
 		return this.cachedCustomModes
 	}
 
-	// costrict: invalidate the in-memory custom modes cache so the next getState() re-reads from disk.
-	// Called by RemoteAgentInstaller after a successful remote agent package install.
-	public invalidateCustomModesCache(): void {
-		this.cachedCustomModes = undefined
-		//costrict: also clear CustomModesManager's TTL cache to avoid stale data after reinstall
-		this.customModesManager.clearCache()
-	}
-
 	private getCachedWorkspaceCommandList(configKey: "allowedCommands" | "deniedCommands"): string[] {
 		const cachedWorkspaceCommands = this.cachedWorkspaceCommandLists?.[configKey]
 		if (cachedWorkspaceCommands) {
