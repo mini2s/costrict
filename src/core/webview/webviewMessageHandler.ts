@@ -34,7 +34,6 @@ import { type ApiMessage } from "../task-persistence/apiMessages"
 import { saveTaskMessages } from "../task-persistence"
 
 import { ClineProvider } from "./ClineProvider"
-import { RemoteAgentInstaller } from "../costrict/remote-agent-installer"
 import { handleCheckpointRestoreOperation } from "./checkpointRestoreHandler"
 import { generateErrorDiagnostics } from "./diagnosticsHandler"
 import {
@@ -117,7 +116,6 @@ import { handleQueryMcpAsyncTask } from "../../services/mcp/asyncPolling/handleQ
 import { createLogger } from "../../utils/logger"
 
 let webviewDidLaunchTimer: NodeJS.Timeout | undefined
-const REMOTE_AGENT_INSTALLER_START_DELAY_MS = 3_000
 
 export const webviewMessageHandler = async (
 	provider: ClineProvider,
@@ -762,16 +760,6 @@ export const webviewMessageHandler = async (
 				clearTimeout(webviewDidLaunchTimer)
 				webviewDidLaunchTimer = setTimeout(() => {
 					void initNotificationService(provider)
-
-					setTimeout(() => {
-						try {
-							RemoteAgentInstaller.getInstance(provider.context).scheduleBackgroundCheck()
-						} catch (error: any) {
-							createLogger(Package.outputChannel).channel.appendLine(
-								`[RemoteAgentInstaller] Failed to start deferred background check: ${error instanceof Error ? error.message : String(error)}`,
-							)
-						}
-					}, REMOTE_AGENT_INSTALLER_START_DELAY_MS)
 
 					// Deferred background work — only needed once the webview is ready
 					void flushModels(
@@ -2201,10 +2189,6 @@ export const webviewMessageHandler = async (
 			break
 		case "upsertApiConfiguration":
 			if (message.text && message.apiConfiguration) {
-				//costrict: read old costrictBaseUrl before saving (trimmed, empty-string normalized)
-				const oldConfig = (await provider.getState()).apiConfiguration
-				const oldBaseUrl = oldConfig?.costrictBaseUrl?.trim() || ""
-
 				if (message.apiConfiguration.apiProvider === "costrict") {
 					await provider.providerSettingsManager.saveMergeConfig(
 						{
@@ -2223,18 +2207,6 @@ export const webviewMessageHandler = async (
 						message.apiConfiguration?.costrictAccessToken,
 						message.apiConfiguration?.costrictRefreshToken,
 					)
-				}
-
-				//costrict: read new costrictBaseUrl after saving (trimmed, empty-string normalized)
-				const newConfig = (await provider.getState()).apiConfiguration
-				const newBaseUrl = newConfig?.costrictBaseUrl?.trim() || ""
-
-				//costrict: trigger reinstall only when base_url changed
-				if (oldBaseUrl !== newBaseUrl) {
-					provider.log(
-						`[webviewMessageHandler] costrictBaseUrl changed ("${oldBaseUrl}" → "${newBaseUrl}"), triggering remote agent install`,
-					)
-					void RemoteAgentInstaller.getInstance().triggerManualInstall()
 				}
 			}
 			break

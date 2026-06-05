@@ -141,6 +141,8 @@ async function fetchModelsFromProvider(options: GetModelsOptions): Promise<Model
  */
 export const getModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
 	const { provider } = options
+	const refreshOnDiskCacheHit = "refreshOnDiskCacheHit" in options && options.refreshOnDiskCacheHit
+	const hadMemoryModels = memoryCache.get<ModelRecord>(provider) != null
 	// let clineProvider = await ClineProvider.getAllInstance()
 
 	let models = getModelsFromCache(provider)
@@ -150,6 +152,11 @@ export const getModels = async (options: GetModelsOptions): Promise<ModelRecord>
 			if (provider === "costrict" && JSON.stringify(models) === "{}") {
 				models = undefined
 			} else {
+				if (!hadMemoryModels && refreshOnDiskCacheHit) {
+					void refreshModels(options).catch((error) => {
+						console.error(`[getModels] Background refresh failed for ${provider}:`, error)
+					})
+				}
 				return models
 			}
 		}

@@ -925,6 +925,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 						provider: "costrict",
 						baseUrl: `${this.options.costrictBaseUrl?.trim() || CostrictAuthConfig.getInstance().getDefaultApiBaseUrl()}`,
 						apiKey: this.options.costrictAccessToken,
+						refreshOnDiskCacheHit: true,
 					})
 				)[id] ?? costrictModels.default
 
@@ -952,7 +953,12 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 		}
 		const _mid = id.toLowerCase()
 		if (
-			(_mid?.includes("auto") || _mid?.includes("kimi") || _mid?.includes("minimax") || _mid?.includes("glm") || _mid?.includes("deepseek-v4") || _mid?.includes("qwen-3")) &&
+			(_mid?.includes("auto") ||
+				_mid?.includes("kimi") ||
+				_mid?.includes("minimax") ||
+				_mid?.includes("glm") ||
+				_mid?.includes("deepseek-v4") ||
+				_mid?.includes("qwen-3")) &&
 			info.preserveReasoning == null
 		) {
 			info.preserveReasoning = true

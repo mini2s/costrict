@@ -47,7 +47,6 @@ import prettyBytes from "pretty-bytes"
 import { isCliPatform, isJetbrainsPlatform } from "../../utils/platform"
 import { updateDefaultDebug } from "../../utils/getDebugState"
 import { COSTRICT_DEFAULT_HEADERS } from "../../shared/headers"
-import { RemoteAgentInstaller } from "./remote-agent-installer"
 
 const HISTORY_WARN_SIZE = 1000 * 1000 * 1000 * 3
 
@@ -246,8 +245,4 @@ export async function deactivate() {
 	void disconnectIPC()
 	void stopIPCServer()
 	loggerDeactivate()
-
-	// costrict: dispose remote agent installer (use disposeInstance to avoid creating a new
-	// instance just to immediately dispose it when the singleton was never initialized)
-	RemoteAgentInstaller.disposeInstance()
 }
