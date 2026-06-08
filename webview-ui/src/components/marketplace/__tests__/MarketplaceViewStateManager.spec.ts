@@ -10,7 +10,7 @@ vi.mock("@/utils/vscode", () => ({
 
 describe("MarketplaceViewStateManager", () => {
 	let stateManager: MarketplaceViewStateManager
-	let mockStateChangeHandler: ReturnType<typeof vi.fn>
+	let mockStateChangeHandler: (...args: any[]) => void
 
 	const mockMarketplaceItems: MarketplaceItem[] = [
 		{
@@ -43,7 +43,7 @@ describe("MarketplaceViewStateManager", () => {
 
 	beforeEach(() => {
 		stateManager = new MarketplaceViewStateManager()
-		mockStateChangeHandler = vi.fn()
+		mockStateChangeHandler = vi.fn() as (...args: any[]) => void
 		stateManager.onStateChange(mockStateChangeHandler)
 	})
 
@@ -141,7 +141,7 @@ describe("MarketplaceViewStateManager", () => {
 			await stateManager.handleMessage(message)
 
 			expect(mockStateChangeHandler).toHaveBeenCalled()
-			const notifiedState = mockStateChangeHandler.mock.calls[0][0]
+			const notifiedState = vi.mocked(mockStateChangeHandler).mock.calls[0][0]
 			expect(notifiedState.allItems).toEqual(mockMarketplaceItems)
 			expect(notifiedState.displayItems).toEqual(mockMarketplaceItems)
 		})
