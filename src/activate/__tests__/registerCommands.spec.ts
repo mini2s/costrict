@@ -2,19 +2,10 @@ import type { Mock } from "vitest"
 import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 
-import { getCommandsMap, getVisibleProviderOrLog } from "../registerCommands"
+import { getVisibleProviderOrLog } from "../registerCommands"
 
 vi.mock("execa", () => ({
 	execa: vi.fn(),
-}))
-
-const mockTerminalManager = {
-	running: false,
-	write: vi.fn(),
-}
-
-vi.mock("../../core/costrict/cli-wrap", () => ({
-	getTerminalManager: () => mockTerminalManager,
 }))
 
 vi.mock("vscode", async () => {
@@ -96,8 +87,6 @@ describe("registerCommands", () => {
 			show: vi.fn(),
 			dispose: vi.fn(),
 		}
-		mockTerminalManager.running = false
-		mockTerminalManager.write.mockReset()
 		vi.clearAllMocks()
 		vi.mocked(vscode.Uri.parse).mockReset()
 		vi.mocked(vscode.workspace.getWorkspaceFolder).mockReset()
@@ -121,45 +110,5 @@ describe("registerCommands", () => {
 
 		expect(result).toBeUndefined()
 		expect(mockOutputChannel.appendLine).toHaveBeenCalledWith("Cannot find any visible CoStrict instances.")
-	})
-
-	it.skip("posts a CLI toast when inserting file paths into a running CoStrict CLI terminal", async () => {
-		const mockProvider = {
-			cwd: "/mock/workspace",
-			activeTab: "cs-cli",
-			postMessageToWebview: vi.fn().mockResolvedValue(undefined),
-		} as unknown as ClineProvider
-		;(ClineProvider.getInstance as Mock).mockResolvedValue(mockProvider)
-		mockTerminalManager.running = true
-		mockTerminalManager.write.mockResolvedValue(undefined)
-		vi.mocked(vscode.Uri.parse).mockReturnValue({
-			fsPath: "/mock/workspace/src/file.ts",
-			path: "/mock/workspace/src/file.ts",
-		} as any)
-		vi.mocked(vscode.workspace.getWorkspaceFolder).mockReturnValue({ uri: { path: "/mock/workspace" } } as any)
-		vi.mocked(vscode.workspace.fs.stat).mockResolvedValue({ type: vscode.FileType.File } as any)
-
-		const commands = getCommandsMap({
-			context: {} as vscode.ExtensionContext,
-			outputChannel: mockOutputChannel,
-			provider: mockProvider,
-		})
-
-		await commands.addFileToContext({
-			path: "file:///mock/workspace/src/file.ts",
-			external: "file:///mock/workspace/src/file.ts",
-			fsPath: "/mock/workspace/src/file.ts",
-		})
-
-		expect(mockTerminalManager.write).toHaveBeenCalledWith("\x1b[200~@/src/file.ts \x1b[201~")
-		expect(mockProvider.postMessageToWebview).toHaveBeenNthCalledWith(1, {
-			type: "action",
-			action: "switchTab",
-			tab: "cs-cli",
-		})
-		expect(mockProvider.postMessageToWebview).toHaveBeenNthCalledWith(2, {
-			type: "CostrictCliToast",
-			text: "File path inserted into CoStrict CLI",
-		})
 	})
 })

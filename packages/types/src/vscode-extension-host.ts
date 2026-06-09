@@ -130,15 +130,6 @@ export interface ExtensionMessage {
 		| "customStoragePathSelected"
 		| "skills"
 		| "fileContent"
-		// CostrictCli messages
-		| "CostrictCliOutput"
-		| "CostrictCliExit"
-		| "CostrictCliError"
-		| "CostrictCliClear"
-		| "CostrictCliPasteUnavailable"
-		| "CostrictCliRestart"
-		| "CostrictCliHttpReady"
-		| "CostrictCliToast"
 	text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
@@ -687,13 +678,6 @@ export interface WebviewMessage {
 		| "moveSkill"
 		| "updateSkillModes"
 		| "openSkillFile"
-		// CostrictCli messages
-		| "CostrictCliStart"
-		| "CostrictCliInput"
-		| "CostrictCliRequestPaste"
-		| "CostrictCliResize"
-		| "CostrictCliStop"
-		| "CostrictCliRestart"
 	text?: string
 	// costrict-start
 	issueId?: string
@@ -714,7 +698,6 @@ export interface WebviewMessage {
 		| "costrict-account"
 		| "codeReview"
 		| "codeReviewHistory"
-		| "cs-cli"
 	disabled?: boolean
 	context?: string
 	dataUri?: string
@@ -757,13 +740,6 @@ export interface WebviewMessage {
 	skillModeSlugs?: string[] // For skill operations (mode restrictions)
 	/** Target mode slugs for updateSkillModes */
 	newSkillModeSlugs?: string[] // For updateSkillModes (new mode restrictions)
-	// CostrictCli fields
-	data?: string // For CostrictCliInput/CostrictCliOutput
-	cols?: number // For CostrictCliResize
-	rows?: number // For CostrictCliResize
-	exitCode?: number // For CostrictCliExit
-	ready?: boolean // For CostrictCliHttpReady
-	port?: number | null // For CostrictCliHttpReady
 	requestId?: string
 	ids?: string[]
 	terminalOperation?: "continue" | "abort"
