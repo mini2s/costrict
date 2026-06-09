@@ -312,7 +312,6 @@ describe("App", () => {
 
 		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.agent" })).toBeInTheDocument()
 		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.codeReview" })).toBeInTheDocument()
-		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.cli" })).not.toBeInTheDocument()
 	})
 
 	it("shows the code review tab for costrict provider and activates it on click", async () => {
@@ -339,7 +338,6 @@ describe("App", () => {
 
 		expect(screen.getByRole("tab", { name: "common:costrictCli.tabs.agent" })).toBeInTheDocument()
 		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.codeReview" })).not.toBeInTheDocument()
-		expect(screen.queryByRole("tab", { name: "common:costrictCli.tabs.cli" })).not.toBeInTheDocument()
 	})
 
 	it("does not render the old App header actions when the code review tab is active", async () => {

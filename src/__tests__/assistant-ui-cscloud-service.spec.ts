@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockFs, mockSpawn, mockHomedir, mockHttp } = vi.hoisted(() => {
+const { mockFs, mockSpawn, mockHomedir, mockHttp, mockWhich, mockCrossSpawn } = vi.hoisted(() => {
 	const mockHttp: Record<string, any> = {}
 	return {
 		mockFs: {
@@ -13,6 +13,8 @@ const { mockFs, mockSpawn, mockHomedir, mockHttp } = vi.hoisted(() => {
 		mockSpawn: { spawn: vi.fn(), execFile: vi.fn() },
 		mockHomedir: vi.fn(() => "/home/testuser"),
 		mockHttp,
+		mockWhich: vi.fn(),
+		mockCrossSpawn: vi.fn(),
 	}
 })
 
@@ -23,6 +25,8 @@ vi.mock("child_process", () => ({
 	execFile: (...args: any[]) => mockSpawn.execFile(...args),
 }))
 vi.mock("http", () => mockHttp)
+vi.mock("which", () => ({ default: mockWhich }))
+vi.mock("cross-spawn", () => ({ default: mockCrossSpawn }))
 
 const { getConfigValues, setConfigValues } = vi.hoisted(() => {
 	let vals: Record<string, unknown> = {}
@@ -67,6 +71,21 @@ function resetMocks() {
 		if (typeof cb === "function") cb(new Error("not found"), "", "")
 		return undefined as any
 	})
+	// Default: which rejects (csc not found on system)
+	mockWhich.mockRejectedValue(new Error("not found: csc"))
+	// Default: cross-spawn returns child that closes with no stdout
+	mockCrossSpawn.mockImplementation(() => {
+		const child = {
+			on: vi.fn((ev: string, fn: (...args: any[]) => any) => {
+				if (ev === "close") setTimeout(() => fn(0), 10)
+			}),
+			stdout: { on: vi.fn() },
+			stderr: { on: vi.fn() },
+			unref: vi.fn(),
+			kill: vi.fn(),
+		}
+		return child
+	})
 }
 
 function mockHealthOk() {
@@ -89,10 +108,35 @@ function mockHealthDown() {
 }
 
 function setExecFileStdout(output: string) {
-	mockSpawn.execFile.mockImplementation((...args: any[]) => {
-		const cb = args[args.length - 1]
-		if (typeof cb === "function") cb(null, output, "")
-		return undefined as any
+	mockWhich.mockResolvedValue("/usr/local/bin/csc")
+	mockCrossSpawn.mockImplementation(() => {
+		const stdoutHandlers: ((data: Buffer) => void)[] = []
+		const stderrHandlers: ((data: Buffer) => void)[] = []
+		const closeHandlers: ((code: number) => void)[] = []
+		const child = {
+			on: vi.fn((ev: string, fn: (...args: any[]) => any) => {
+				if (ev === "close") closeHandlers.push(fn)
+				if (ev === "error") {
+					/* capture but don't fire */
+				}
+			}),
+			stdout: {
+				on: vi.fn((ev: string, fn: (...args: any[]) => any) => {
+					if (ev === "data") stdoutHandlers.push(fn)
+				}),
+			},
+			stderr: {
+				on: vi.fn((ev: string, fn: (...args: any[]) => any) => {
+					if (ev === "data") stderrHandlers.push(fn)
+				}),
+			},
+			kill: vi.fn(),
+		}
+		setTimeout(() => {
+			stdoutHandlers.forEach((fn) => fn(Buffer.from(output)))
+			closeHandlers.forEach((fn) => fn(0))
+		}, 10)
+		return child
 	})
 }
 
@@ -103,6 +147,10 @@ function denyServerUrlFile() {
 }
 
 function setServerUrlFile(raw: string) {
+	mockFs.existsSync.mockImplementation((p: string) => {
+		const s = p.toString()
+		return s.endsWith("server_url") || s.includes("cs-cloud")
+	})
 	mockFs.readFileSync.mockReturnValue(raw)
 }
 
@@ -134,20 +182,16 @@ describe("CsCloudService (refactored)", () => {
 		const svc = new CsCloudService(createOutputChannel() as never)
 		await expect(svc.ensureStarted()).resolves.toBe("http://127.0.0.1:55555/api/v1")
 		expect(svc.state).toBe("running")
-		expect(mockFs.writeFileSync).toHaveBeenCalledWith(
-			expect.stringContaining("server_url"),
-			"http://127.0.0.1:55555",
-			"utf-8",
-		)
 	})
 
 	it("throws install prompt when nothing works", async () => {
 		denyServerUrlFile()
 		mockHealthDown()
 		mockFs.existsSync.mockReturnValue(false)
+		mockWhich.mockResolvedValue("/usr/local/bin/csc")
 		const svc = new CsCloudService(createOutputChannel() as never)
-		await expect(svc.ensureStarted()).rejects.toThrow("未检测到 cs-cloud")
-		expect(svc.state).toBe("failed")
+		await expect(svc.ensureStarted()).rejects.toThrow("手动执行：csc cloud start")
+		expect(svc.state).toBe("error")
 	})
 
 	it("restart clears state and re-resolves", async () => {

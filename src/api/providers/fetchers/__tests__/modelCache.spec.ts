@@ -336,7 +336,7 @@ describe("empty cache protection", () => {
 				"https://api.example.com",
 				"test-api-key",
 				undefined,
-				2000,
+				1000,
 			)
 
 			await vi.waitFor(() => {

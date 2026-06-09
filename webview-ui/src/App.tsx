@@ -24,8 +24,6 @@ const LazyHistoryView = React.lazy(() => import("./components/history/HistoryVie
 const LazySettingsView = React.lazy(() => import("./components/settings/SettingsView"))
 const LazyCodeReviewPage = React.lazy(() => import("./components/code-review"))
 const LazyCodeReviewHistoryView = React.lazy(() => import("./components/code-review/CodeReviewHistoryView"))
-// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关组件暂不加载，待后续恢复
-// const LazyCostrictCliView = React.lazy(() => import("./components/costrict-cli/CostrictCliView"))
 const LazyWelcomeView = React.lazy(() => import("./components/welcome/WelcomeViewProvider"))
 const LazyCostrictAccountView = React.lazy(() =>
 	import("./components/cloud/CostrictAccountView").then((m) => ({ default: m.CostrictAccountView })),
@@ -45,8 +43,6 @@ type Tab =
 	| "settings"
 	| "history"
 	| "chat"
-	// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，暂时从类型中移除
-	// | "cs-cli"
 	| "marketplace"
 	| "cloud"
 	| "costrict-account"
@@ -167,10 +163,6 @@ const App = () => {
 
 			setCurrentSection(undefined)
 			// setCurrentMarketplaceTab(undefined)
-			// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
-			// if (newTab === "cs-cli" && !didHydrateCliState) {
-			// 	setDidHydrateSClitate(true)
-			// }
 			// Notify backend of active tab change so it can hibernate/wake non-CLI features
 			if (settingsRef.current?.checkUnsaveChanges) {
 				settingsRef.current.checkUnsaveChanges(() => {
@@ -201,13 +193,10 @@ const App = () => {
 			const message: ExtensionMessage = e.data
 
 			// When CLI tab is active, route invoke messages to the terminal via bracketed paste
-			// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
-			// if (message.type === "invoke" && tab === "cs-cli") {
 			// 	const text = message.text ?? ""
 			// 	if (text) {
 			// 		const PASTE_START = "\x1b[200~"
 			// 		const PASTE_END = "\x1b[201~"
-			// 		vscode.postMessage({ type: "CostrictCliInput", data: PASTE_START + text + PASTE_END })
 			// 	}
 			// 	return
 			// }
@@ -218,8 +207,6 @@ const App = () => {
 					const targetTab = message.tab as Tab
 					// Use setTab directly instead of switchTab to avoid re-posting
 					// to the backend (which would echo back and cause an infinite loop).
-					// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
-					// if (targetTab === "cs-cli" && !didHydrateCliState) {
 					// 	setDidHydrateSClitate(true)
 					// }
 					setTab(targetTab)
@@ -340,20 +327,12 @@ const App = () => {
 		]
 
 		if (apiConfiguration?.apiProvider === "costrict") {
-			baseTabs.push(
-				{
-					label: t("common:costrictCli.tabs.codeReview"),
-					value: "codeReview",
-					icon: "codicon-code-review",
-					// icon: "codicon-search",
-				},
-				// HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复
-				// {
-				// 	label: t("common:costrictCli.tabs.cli"),
-				// 	value: "cs-cli",
-				// 	icon: "codicon-terminal",
-				// },
-			)
+			baseTabs.push({
+				label: t("common:costrictCli.tabs.codeReview"),
+				value: "codeReview",
+				icon: "codicon-code-review",
+				// icon: "codicon-search",
+			})
 		}
 
 		return baseTabs
@@ -530,10 +509,8 @@ const App = () => {
 							/>
 						</React.Suspense>
 					)}
-					{/* HIDDEN(cs-cli): cs-cli tab 入口已隐藏，相关逻辑暂时禁用，待后续恢复 */}
 					{/* {apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
 						<React.Suspense fallback={<LoadingView />}>
-							<LazyCostrictCliView isHidden={tab !== "cs-cli"} />
 						</React.Suspense>
 					)} */}
 				</TabContent>

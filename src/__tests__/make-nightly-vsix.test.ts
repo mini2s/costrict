@@ -2,6 +2,8 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
+const sourcePackageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"))
+
 const {
 	patchPackageJson,
 	patchRuntimeBundle,
@@ -46,7 +48,7 @@ describe("make-nightly-vsix patchPackageJson", () => {
 
 		expect(patchedPackage.name).toBe("zgsm-nightly")
 		expect(patchedPackage.publisher).toBe("zgsm-ai")
-		expect(patchedPackage.version).toBe("3.0.3")
+		expect(patchedPackage.version).toBe(sourcePackageJson.version)
 		expect(patchedPackage.displayName).toBe("CoStrict Nightly")
 		expect(patchedPackage.description).toBe("nightly build for costrict-nightly")
 		expect(patchedPackage.command).toBe("costrict-nightly.openPanel")
