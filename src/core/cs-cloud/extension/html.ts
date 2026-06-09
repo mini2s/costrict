@@ -779,7 +779,10 @@ export function getAssistantUIStaticHtml(
                 console.error(diagnosticPrefix + " fetch failed", url, error && (error.stack || error.message || error));
                 throw error;
               };
-              if (typeof url === "string" && url.indexOf("sangfor.com") >= 0) {
+              // Proxy cs-cloud API requests and sangfor.com requests through the
+              // extension host to avoid CORS errors in the webview sandbox.
+              const isCsCloudUrl = typeof url === "string" && url.indexOf(window.__CS_CLOUD_BASE_URL__) === 0;
+              if (typeof url === "string" && (url.indexOf("sangfor.com") >= 0 || isCsCloudUrl)) {
                 return new Promise(function(resolve) {
                   const requestId = "proxy-" + Date.now() + "-" + (++proxyFetchSeq);
                   const headers = {};
@@ -934,6 +937,11 @@ export function getAssistantUIIframeHtml(
 		pluginSha,
 		pluginBuildTime,
 	)
+	const frameSrc = ["http://127.0.0.1:*", "http://localhost:*"]
+	const frameOrigin = new URL(frameUrl).origin
+	if (frameOrigin !== "null" && !frameSrc.includes(frameOrigin)) {
+		frameSrc.push(frameOrigin)
+	}
 	const csp = [
 		"default-src 'none'",
 		`font-src ${webview.cspSource} data:`,
@@ -941,7 +949,7 @@ export function getAssistantUIIframeHtml(
 		`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com https: data: blob:`,
 		`media-src ${webview.cspSource}`,
 		`script-src 'unsafe-eval' ${webview.cspSource} https://* https://*.posthog.com http://127.0.0.1:* http://localhost:* http://0.0.0.0:* 'nonce-${nonce}'`,
-		"frame-src http://127.0.0.1:* http://localhost:*",
+		`frame-src ${frameSrc.join(" ")}`,
 		`connect-src ${webview.cspSource} https://* https://*.posthog.com https://*.sangfor.com ws://127.0.0.1:* ws://0.0.0.0:* ws://localhost:*  http://127.0.0.1:* http://localhost:* `,
 	].join("; ")
 
