@@ -1193,9 +1193,9 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 				}
 				// 新增：api_req_retry_delayed / api_req_rate_limit_wait 只保留最后一条
 				if (message.say === "api_req_retry_delayed" || message.say === "api_req_rate_limit_wait") {
-					const lastRetryOrRateLimit = modifiedMessages.filter(m =>
-						m.say === "api_req_retry_delayed" || m.say === "api_req_rate_limit_wait"
-					).at(-1)
+					const lastRetryOrRateLimit = modifiedMessages
+						.filter((m) => m.say === "api_req_retry_delayed" || m.say === "api_req_rate_limit_wait")
+						.at(-1)
 					return message === lastRetryOrRateLimit
 				}
 				return true
@@ -1492,7 +1492,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	useEffect(() => {
 		checkpointJumpCursorRef.current = null
-	}, [task?.ts, checkpointIndices])
+	}, [task?.ts, checkpointIndices.length])
 
 	// Scroll lifecycle is managed by a dedicated hook to keep ChatView focused
 	// on message handling and UI orchestration.

@@ -779,7 +779,10 @@ export function getAssistantUIStaticHtml(
                 console.error(diagnosticPrefix + " fetch failed", url, error && (error.stack || error.message || error));
                 throw error;
               };
-              if (typeof url === "string" && url.indexOf("sangfor.com") >= 0) {
+              // Proxy cs-cloud API requests and sangfor.com requests through the
+              // extension host to avoid CORS errors in the webview sandbox.
+              const isCsCloudUrl = typeof url === "string" && url.indexOf(window.__CS_CLOUD_BASE_URL__) === 0;
+              if (typeof url === "string" && (url.indexOf("sangfor.com") >= 0 || isCsCloudUrl)) {
                 return new Promise(function(resolve) {
                   const requestId = "proxy-" + Date.now() + "-" + (++proxyFetchSeq);
                   const headers = {};
