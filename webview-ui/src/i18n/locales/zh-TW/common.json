@@ -26,6 +26,7 @@
 		"initializing_interface": "正在初始化介面..."
 	},
 	"costrictCli": {
+		"brand": "COSTRICT",
 		"tabs": {
 			"agent": "AGENT",
 			"codeReview": "CODE REVIEW"
