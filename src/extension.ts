@@ -2,6 +2,9 @@ import * as vscode from "vscode"
 import * as dotenvx from "@dotenvx/dotenvx"
 import * as fs from "fs"
 import * as path from "path"
+import * as http from "http"
+import * as https from "https"
+import axios from "axios"
 import * as CostrictCore from "./core/costrict"
 
 // Load environment variables from .env file
@@ -137,6 +140,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(outputChannel)
 	outputChannel.appendLine(`${Package.commandIDPrefix} extension activated - ${JSON.stringify(Package)}`)
 
+	// Fix for "TypeError: j.setKeepAlive is not a function" in VS Code Electron host.
+	// axios v1.x internally uses Node's http/https agents which default to keepAlive: true.
+	// In Electron-based VS Code, the socket wrapper may not expose setKeepAlive(),
+	// causing errors on every axios request. Disabling keepAlive prevents this issue.
+	axios.defaults.httpAgent = new http.Agent({ keepAlive: false })
+	axios.defaults.httpsAgent = new https.Agent({ keepAlive: false })
+
 	// Kick off non-critical startup tasks in the background so activation can continue.
 	void initializeNetworkProxy(context, outputChannel).catch((error) => {
 		outputChannel.appendLine(
@@ -253,7 +263,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// 注册 restart 命令（命令面板 + 错误页按钮）
 		context.subscriptions.push(
-			vscode.commands.registerCommand( `${Package.commandIDPrefix}.restartCsCloud`, async () => {
+			vscode.commands.registerCommand(`${Package.commandIDPrefix}.restartCsCloud`, async () => {
 				try {
 					await assistantProvider.restartCsCloud()
 				} catch (err) {
