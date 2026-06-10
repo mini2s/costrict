@@ -572,6 +572,7 @@ describe("ChatView scroll behavior regression coverage", () => {
 		await hydrate(2, buildMessagesWithMultipleCheckpoints(Date.now() - 3_000))
 		await waitForCalls(2)
 		await waitForCallsSettled()
+		harness.atBottomAfterCalls = Number.POSITIVE_INFINITY
 
 		// After hydration, checkpoint scrolls should NOT report atBottom(true).
 		// Scrolling to a checkpoint moves away from the bottom, so the mock must
@@ -590,26 +591,26 @@ describe("ChatView scroll behavior regression coverage", () => {
 			timeout: 1_200,
 		})
 
-		const checkpointButton = getScrollToCheckpointButton()
+		const clickCheckpointAndWaitForScroll = async () => {
+			const scrollCallsBeforeClick = harness.scrollCalls
 
-		await act(async () => {
-			;(checkpointButton as HTMLButtonElement).click()
-		})
+			await act(async () => {
+				getScrollToCheckpointButton().click()
+			})
+
+			await waitForCalls(scrollCallsBeforeClick + 1)
+		}
+
+		await clickCheckpointAndWaitForScroll()
 		expect(harness.scrollToIndexArgs.at(-1)).toMatchObject({ index: 4, align: "center", behavior: "smooth" })
 
-		await act(async () => {
-			;(checkpointButton as HTMLButtonElement).click()
-		})
+		await clickCheckpointAndWaitForScroll()
 		expect(harness.scrollToIndexArgs.at(-1)).toMatchObject({ index: 2, align: "center", behavior: "smooth" })
 
-		await act(async () => {
-			;(checkpointButton as HTMLButtonElement).click()
-		})
+		await clickCheckpointAndWaitForScroll()
 		expect(harness.scrollToIndexArgs.at(-1)).toMatchObject({ index: 0, align: "center", behavior: "smooth" })
 
-		await act(async () => {
-			;(checkpointButton as HTMLButtonElement).click()
-		})
+		await clickCheckpointAndWaitForScroll()
 		expect(harness.scrollToIndexArgs.at(-1)).toMatchObject({ index: 0, align: "center", behavior: "smooth" })
 	})
 })
