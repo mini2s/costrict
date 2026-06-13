@@ -8,6 +8,7 @@ import type { HistoryItem } from "@roo-code/types"
 
 import { TaskHistoryStore } from "../TaskHistoryStore"
 import { GlobalFileNames } from "../../../shared/globalFileNames"
+import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 vi.mock("../../../utils/storage", () => ({
 	getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => defaultPath),
@@ -40,6 +41,7 @@ describe("TaskHistoryStore", () => {
 	let store: TaskHistoryStore
 
 	beforeEach(async () => {
+		vi.mocked(safeWriteJson).mockClear()
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-history-test-"))
 		store = new TaskHistoryStore(tmpDir)
 	})
@@ -387,6 +389,11 @@ describe("TaskHistoryStore", () => {
 			expect(index.version).toBe(1)
 			expect(index.entries).toHaveLength(1)
 			expect(index.entries[0].id).toBe("flush-task")
+			expect(vi.mocked(safeWriteJson)).toHaveBeenCalledWith(
+				indexPath,
+				expect.objectContaining({ entries: expect.any(Array) }),
+				expect.objectContaining({ onExdev: "copy-unlink" }),
+			)
 		})
 	})
 
