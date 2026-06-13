@@ -395,7 +395,7 @@ export class TaskHistoryStore {
 			entries: this.getAll(),
 		}
 
-		await safeWriteJson(indexPath, index)
+		await safeWriteJson(indexPath, index, { onExdev: "copy-unlink" })
 	}
 
 	/**
