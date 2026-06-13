@@ -4,6 +4,8 @@ import * as path from "path"
 import * as lockfile from "proper-lockfile"
 import { JsonStreamStringify } from "json-stream-stringify"
 
+export type ExdevFallbackStrategy = "error" | "copy-unlink"
+
 /**
  * Options for safeWriteJson function
  */
@@ -15,6 +17,11 @@ export interface SafeWriteJsonOptions {
 	 * @default false
 	 */
 	prettyPrint?: boolean
+	/**
+	 * Strategy to use when rename fails with EXDEV.
+	 * @default "error"
+	 */
+	onExdev?: ExdevFallbackStrategy
 }
 
 /**
@@ -34,6 +41,7 @@ export interface SafeWriteJsonOptions {
 
 async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJsonOptions): Promise<void> {
 	const absoluteFilePath = path.resolve(filePath)
+	const exdevFallbackStrategy = options?.onExdev ?? "error"
 	let releaseLock = async () => {} // Initialized to a no-op
 
 	// For directory creation
@@ -100,7 +108,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 				path.dirname(absoluteFilePath),
 				`.${path.basename(absoluteFilePath)}.bak_${Date.now()}_${Math.random().toString(36).substring(2)}.tmp`,
 			)
-			await fs.rename(absoluteFilePath, actualTempBackupFilePath)
+			await safeRename(absoluteFilePath, actualTempBackupFilePath, exdevFallbackStrategy)
 		} catch (accessError: any) {
 			// Explicitly type accessError
 			if (accessError.code !== "ENOENT") {
@@ -112,7 +120,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 
 		// Step 3: Rename the new temporary file to the target file path.
 		// This is the main "commit" step.
-		await fs.rename(actualTempNewFilePath, absoluteFilePath)
+		await safeRename(actualTempNewFilePath, absoluteFilePath, exdevFallbackStrategy)
 
 		// If we reach here, the new file is successfully in place.
 		// The original actualTempNewFilePath is now the main file, so we shouldn't try to clean it up as "temp".
@@ -143,7 +151,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 		// Attempt rollback if a backup was made
 		if (backupFileToRollbackOrCleanupWithinCatch) {
 			try {
-				await fs.rename(backupFileToRollbackOrCleanupWithinCatch, absoluteFilePath)
+				await safeRename(backupFileToRollbackOrCleanupWithinCatch, absoluteFilePath, exdevFallbackStrategy)
 				// Mark as handled, prevent later unlink of this path
 				actualTempBackupFilePath = null
 			} catch (rollbackError) {
@@ -189,6 +197,19 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 			// Do not re-throw here, as the originalError from the try/catch (if any) is more important.
 			console.error(`Failed to release lock for ${absoluteFilePath}:`, unlockError)
 		}
+	}
+}
+
+async function safeRename(src: string, dst: string, exdevFallbackStrategy: ExdevFallbackStrategy): Promise<void> {
+	try {
+		await fs.rename(src, dst)
+	} catch (err: any) {
+		if (err?.code === "EXDEV" && exdevFallbackStrategy === "copy-unlink") {
+			await fs.copyFile(src, dst)
+			await fs.unlink(src)
+			return
+		}
+		throw err
 	}
 }
 

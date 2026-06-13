@@ -9,6 +9,7 @@ import { safeWriteJson } from "../safeWriteJson"
 const originalFsPromisesRename = actualFsPromises.rename
 const originalFsPromisesUnlink = actualFsPromises.unlink
 const originalFsPromisesWriteFile = actualFsPromises.writeFile
+const originalFsPromisesCopyFile = actualFsPromises.copyFile
 const _originalFsPromisesAccess = actualFsPromises.access
 const originalFsPromisesMkdir = actualFsPromises.mkdir
 
@@ -23,6 +24,7 @@ vi.mock("fs/promises", async () => {
 	mockedFs.writeFile = vi.fn(actual.writeFile) as any
 	mockedFs.readFile = vi.fn(actual.readFile) as any
 	mockedFs.rename = vi.fn(actual.rename) as any
+	mockedFs.copyFile = vi.fn(actual.copyFile) as any
 	mockedFs.unlink = vi.fn(actual.unlink) as any
 	mockedFs.access = vi.fn(actual.access) as any
 	mockedFs.mkdtemp = vi.fn(actual.mkdtemp) as any
@@ -476,5 +478,44 @@ describe("safeWriteJson", () => {
 		)
 
 		consoleErrorSpy.mockRestore()
+	})
+
+	function makeExdevError(): NodeJS.ErrnoException {
+		const err = new Error("EXDEV: cross-device link not permitted") as NodeJS.ErrnoException
+		err.code = "EXDEV"
+		return err
+	}
+
+	test("should preserve strict rename behavior for EXDEV by default", async () => {
+		const newData = { message: "Should not be written" }
+		const renameSpy = vi.spyOn(fs, "rename")
+		const copyFileSpy = vi.spyOn(fs, "copyFile")
+
+		renameSpy.mockRejectedValueOnce(makeExdevError())
+
+		await expect(safeWriteJson(currentTestFilePath, newData)).rejects.toThrow("EXDEV")
+		expect(copyFileSpy).not.toHaveBeenCalled()
+	})
+
+	test("should fall back to copyFile and unlink when EXDEV fallback is enabled", async () => {
+		const initialData = { message: "Initial" }
+		const newData = { message: "Updated via EXDEV fallback" }
+		await originalFsPromisesWriteFile(currentTestFilePath, JSON.stringify(initialData))
+
+		const renameSpy = vi.spyOn(fs, "rename")
+		const copyFileSpy = vi.spyOn(fs, "copyFile")
+		renameSpy.mockImplementation(async (oldPath, newPath) => {
+			if (String(newPath).includes(".bak_")) {
+				return originalFsPromisesRename(oldPath, newPath)
+			}
+			throw makeExdevError()
+		})
+		copyFileSpy.mockImplementation(async (oldPath, newPath) => originalFsPromisesCopyFile(oldPath, newPath))
+
+		await safeWriteJson(currentTestFilePath, newData, { onExdev: "copy-unlink" })
+
+		const content = await readFileContent(currentTestFilePath)
+		expect(content).toEqual(newData)
+		expect(copyFileSpy).toHaveBeenCalledTimes(1)
 	})
 })
