@@ -959,6 +959,22 @@ export class ClineProvider
 				await sendContextToCloudWithFocus(message)
 				return
 			}
+
+			// explainCode / fixCode / improveCode: cloud has no createTask
+			// equivalent, so send the built prompt as an auto-sent message in a
+			// new thread (same pattern as cloud code review).
+			if (command === "explainCode" || command === "fixCode" || command === "improveCode") {
+				const prompt = supportPrompt.create(promptType as SupportPromptType, params, {})
+				const message: AssistantUIContextMessage = {
+					type: "assistantUIContext",
+					text: prompt,
+					focus: true,
+					newThread: true,
+					autoSend: true,
+				}
+				await sendContextToCloudWithFocus(message)
+				return
+			}
 			// 其他 code action：目前 Cloud 不处理
 			return
 		}

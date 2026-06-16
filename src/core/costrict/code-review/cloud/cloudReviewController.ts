@@ -19,6 +19,7 @@ import {
 	getSecurityReviewAutoExecuteMessage,
 	getSlashCommandPrefix,
 	getPreviewLabel,
+	type SelectedCodeParams,
 } from "../common/reviewContext"
 import {
 	getReviewReportJsonRelativePath,
@@ -146,6 +147,82 @@ export class CloudReviewController {
 
 		const cwd = workspaceFolder.uri.fsPath.toPosix()
 		const params = getSelectedCodeParams(editor, cwd)
+
+		// Build ReviewTarget for selected code
+		const reviewTarget: ReviewTarget = {
+			type: ReviewTargetType.CODE,
+			data: [
+				{
+					file_path: params.filePath,
+					line_range: [parseInt(params.startLine, 10), parseInt(params.endLine, 10)],
+				},
+			],
+		}
+
+		const input = await this.buildResolveInput(reviewTarget, cwd)
+		const resolveConfig = this.buildResolveConfig(input, workspaceFolder, mode)
+
+		let prompt = buildSelectedCodePrompt(params)
+
+		// For security-review mode, append auto-confirmation message
+		if (mode === "security-review") {
+			prompt = `${prompt}\n\n${getSecurityReviewAutoExecuteMessage()}`
+		}
+
+		const slashCommand = getSlashCommandPrefix(mode)
+		const previewLabel = getPreviewLabel(mode)
+
+		const payload: AssistantUIContextMessage = {
+			type: "assistantUIContext",
+			text: `${slashCommand}${prompt}`,
+			previewText: `${previewLabel}${params.filePath}`,
+			focus: true,
+			newThread: true,
+			autoSend: true,
+		}
+
+		await this.sendCloudReviewPayload(payload, workspaceFolder, getReviewReportMdRelativePath(mode), resolveConfig)
+	}
+
+	/**
+	 * Initiate a selected-code review in cloud mode using explicitly provided
+	 * selection parameters, instead of reading from the active text editor.
+	 *
+	 * This is used by JetBrains, where the selection is forwarded from the
+	 * JetBrains host (the active editor mock is unreliable there). The args
+	 * structure mirrors classic `codeReviewJetbrains`: the forwarded object
+	 * is nested as `args[0][0] = { filePath, selectedText, startLine, endLine }`
+	 * (1-based line numbers).
+	 *
+	 * @param args Nested args forwarded from the JetBrains host.
+	 * @param mode Review mode (defaults to "review").
+	 */
+	async startSelectedCodeReviewWithParams(args: any, mode: Mode = "review"): Promise<void> {
+		// Unwrap the nested RPC payload, matching classic codeReviewJetbrains.
+		const data = Array.isArray(args) ? args?.[0]?.[0] : args
+		if (!data) return
+
+		const { filePath, selectedText, startLine, endLine } = data as {
+			filePath: string
+			selectedText?: string
+			startLine: number
+			endLine: number
+		}
+
+		if (!filePath || startLine == null || endLine == null) {
+			return
+		}
+
+		const workspaceFolder = resolveWorkspaceFolderForPath(filePath)
+		if (!workspaceFolder) return
+
+		const cwd = workspaceFolder.uri.fsPath.toPosix()
+		const params: SelectedCodeParams = {
+			filePath: toRelativePath(filePath.toPosix(), cwd),
+			startLine: startLine.toString(),
+			endLine: endLine.toString(),
+			selectedText: selectedText ?? "",
+		}
 
 		// Build ReviewTarget for selected code
 		const reviewTarget: ReviewTarget = {

@@ -110,12 +110,34 @@ export function registerCodeReviewCommands({
 			? {}
 			: {
 					codeReviewJetbrains: async (args: any) => {
+						// In cloud mode, the selected-code selection is forwarded
+						// explicitly from the JetBrains host (the active editor
+						// mock is unreliable), so dispatch to the params-based
+						// cloud controller method.
+						if (getConfiguredUiMode() === "cloud") {
+							await cloud.startSelectedCodeReviewWithParams(args)
+							return
+						}
 						await classicController.codeReviewJetbrains(args)
 					},
 					reviewFilesAndFoldersJetbrains: async (args: any) => {
+						if (getConfiguredUiMode() === "cloud") {
+							const data = Array.isArray(args) ? args?.[0]?.[0] : args
+							const filePaths: string[] | undefined = data?.filePaths
+							if (!filePaths) return
+							await cloud.startFileOrFolderReview(filePaths)
+							return
+						}
 						await classicController.reviewFilesAndFoldersJetbrains(args)
 					},
 					securityFilesAndFoldersJetbrains: async (args: any) => {
+						if (getConfiguredUiMode() === "cloud") {
+							const data = Array.isArray(args) ? args?.[0]?.[0] : args
+							const filePaths: string[] | undefined = data?.filePaths
+							if (!filePaths) return
+							await cloud.startFileOrFolderReview(filePaths, "security-review")
+							return
+						}
 						await classicController.securityFilesAndFoldersJetbrains(args)
 					},
 					acceptIssueJetbrains: async (args: any) => {
