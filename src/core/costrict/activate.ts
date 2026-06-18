@@ -223,9 +223,9 @@ export async function activate(
 				})
 		}
 	})
-	setTimeout(() => {
+	void setTimeout(() => {
 		loginTip()
-	}, 2000)
+	}, 5000)
 }
 
 /**
