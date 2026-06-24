@@ -3,7 +3,7 @@
 	"displayName": "%extension.displayName.long%",
 	"description": "%extension.description%",
 	"publisher": "zgsm-ai",
-	"version": "2.8.15",
+	"version": "3.0.10",
 	"icon": "assets/images/shenma_robot_logo_big.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -90,7 +90,15 @@
 					"type": "webview",
 					"id": "costrict.SidebarProvider",
 					"name": "%views.sidebar.name%",
-					"icon": "assets/images/shenma_robot_logo_big.png"
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "costrict.uiMode == classic"
+				},
+				{
+					"type": "webview",
+					"id": "costrict.AssistantUISidebarProvider",
+					"name": "%views.sidebar.name%",
+					"icon": "assets/images/shenma_robot_logo_big.png",
+					"when": "costrict.uiMode == cloud"
 				}
 			]
 		},
@@ -131,9 +139,19 @@
 				"icon": "$(account)"
 			},
 			{
+				"command": "costrict.restartCsCloud",
+				"title": "CoStrict: Restart CoStrict Cloud",
+				"category": "%configuration.title%"
+			},
+			{
 				"command": "costrict.settingsButtonClicked",
 				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
+			},
+			{
+				"command": "costrict.switchUiMode",
+				"title": "Switch UI Mode",
+				"category": "%configuration.title%"
 			},
 			{
 				"command": "costrict.openInNewTab",
@@ -462,6 +480,11 @@
 				},
 				{
 					"command": "costrict.reloadWebview",
+					"group": "navigation@4",
+					"when": "view == costrict.AssistantUISidebarProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
 					"group": "overflow@4",
 					"when": "view == costrict.SidebarProvider"
 				}
@@ -511,6 +534,11 @@
 					"command": "costrict.reloadWebview",
 					"group": "overflow@6",
 					"when": "activeWebviewPanelId == costrict.TabPanelProvider"
+				},
+				{
+					"command": "costrict.reloadWebview",
+					"group": "overflow@6",
+					"when": "activeWebviewPanelId == costrict.AssistantUISidebarProvider"
 				}
 			],
 			"comments/commentThread/title": [
@@ -741,6 +769,70 @@
 					"default": "",
 					"description": "%settings.customStoragePath.description%"
 				},
+				"costrict.uiMode": {
+					"type": "string",
+					"enum": [
+						"classic",
+						"cloud"
+					],
+					"default": "classic",
+					"description": "Controls which UI mode CoStrict loads on startup. Changes apply after reloading the window."
+				},
+				"costrict.csCloudBaseUrl": {
+					"type": "string",
+					"default": "http://127.0.0.1:34961",
+					"description": "Base URL for the local cs-cloud control plane used by Cloud UI mode."
+				},
+				"costrict.assistantUI.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable the isolated Assistant UI / cs-cloud mode."
+				},
+				"costrict.assistantUI.defaultCli": {
+					"type": "string",
+					"enum": [
+						"csc",
+						"cs"
+					],
+					"default": "csc",
+					"description": "CLI binary used to start and query cs-cloud (e.g. csc cloud start)."
+				},
+				"costrict.assistantUI.port": {
+					"type": "number",
+					"default": 45489,
+					"minimum": 1,
+					"maximum": 65535,
+					"description": "Local port used by Assistant UI mode when starting cs-cloud."
+				},
+				"costrict.assistantUI.autoStartCsCloud": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically start cs-cloud when opening Assistant UI mode if no service is already available on the configured port."
+				},
+				"costrict.assistantUI.baseUrl": {
+					"type": "string",
+					"default": "",
+					"description": "Explicit OpenCode-compatible cs-cloud API base URL for Assistant UI mode, for example http://127.0.0.1:45489/api/v1. When set, the extension will not start cs-cloud."
+				},
+				"costrict.assistantUI.webUrl": {
+					"type": "string",
+					"default": "http://127.0.0.1:3000",
+					"description": "Temporary Assistant UI web app URL loaded by the VSCode Webview demo. Use the with-opencode Next dev server until static Webview assets are added."
+				},
+				"costrict.assistantUI.webviewMode": {
+					"type": "string",
+					"enum": [
+						"static",
+						"iframe"
+					],
+					"default": "static",
+					"description": "Assistant UI Webview loading mode. Use static for bundled Phase 4B assets or iframe for the local Next.js development server fallback."
+				},
+				"costrict.assistantUI.debug": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show Assistant UI diagnostics and pass assistantUIDebug=1 to the iframe fallback. Keep disabled for normal isolated static mode."
+				},
 				"costrict.enableCodeActions": {
 					"type": "boolean",
 					"default": true,
@@ -861,9 +953,9 @@
 		"pretest": "turbo run bundle --cwd ..",
 		"test": "vitest run",
 		"format": "prettier --write .",
-		"build:native": "cd node_modules/node-pty && npx node-gyp rebuild",
+		"cloud:build-static": "node scripts/build-cs-cloud-ui-static.mjs",
 		"bundle": "node esbuild.mjs",
-		"vscode:prepublish": "node ../scripts/generate-review-builtin.mjs && pnpm bundle --production",
+		"vscode:prepublish": "node ../scripts/generate-review-builtin.mjs && pnpm cloud:build-static && pnpm bundle --production",
 		"vsix": "mkdirp ../bin && vsce package --no-dependencies --out ../bin",
 		"publish:marketplace": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
 		"watch:bundle": "pnpm bundle --watch",
@@ -902,6 +994,7 @@
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.3",
 		"clone-deep": "^4.0.1",
+		"cross-spawn": "^7.0.6",
 		"dedent": "^1.6.0",
 		"default-shell": "^2.2.0",
 		"delay": "^6.0.0",
@@ -931,7 +1024,6 @@
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"node-cache": "^5.1.2",
 		"node-ipc": "12.0.0",
-		"node-pty": "1.2.0-beta.12",
 		"ollama": "^0.5.17",
 		"openai": "^5.12.2",
 		"os-locale": "^6.0.2",
@@ -970,6 +1062,7 @@
 		"uuid": "^11.1.0",
 		"vscode-material-icons": "^0.1.1",
 		"web-tree-sitter": "^0.25.6",
+		"which": "^7.0.0",
 		"workerpool": "^9.2.0",
 		"yaml": "^2.8.0",
 		"zhipu-ai-provider": "^0.2.2",
@@ -983,6 +1076,7 @@
 		"@roo-code/config-typescript": "workspace:^",
 		"@types/async-retry": "^1.4.9",
 		"@types/clone-deep": "^4.0.4",
+		"@types/cross-spawn": "^6.0.6",
 		"@types/debug": "^4.1.12",
 		"@types/diff": "^5.2.1",
 		"@types/diff-match-patch": "^1.0.36",

@@ -1,341 +1,45 @@
 import * as vscode from "vscode"
-// import type { GitExtension } from "./git"
 
-import { ClineProvider } from "../../webview/ClineProvider"
-import { getCommand } from "../../../utils/commands"
-import { toRelativePath } from "../../../utils/path"
-import { CostrictCommandId } from "@roo-code/types"
-import { IssueStatus, ReviewTarget, ReviewTargetType } from "../../../shared/codeReview"
-import { getVisibleProviderOrLog } from "../../../activate/registerCommands"
-
+import type { ClineProvider } from "../../webview/ClineProvider"
+import { ReviewTargetType } from "../../../shared/codeReview"
 import { CodeReviewService } from "./codeReviewService"
 import { HistoryManager } from "./HistoryManager"
-import { CommentService } from "../../../integrations/comment"
-import type { ReviewComment } from "./reviewComment"
-import { getChangedFiles } from "../../../utils/git"
-import { t } from "../../../i18n"
-import { GitCommitListener } from "./gitCommitListener"
-import { isJetbrainsPlatform } from "../../../utils/platform"
-import type { Mode } from "../../../shared/modes"
+import { registerCodeReviewCommands } from "./registerCodeReviewCommands"
+import { initCloudReviewLifecycle } from "./cloud/cloudReviewLifecycle"
+import { createClassicReviewController } from "./classic/classicReviewController"
+import {
+	startGitCommitReviewListener,
+	disposeGitCommitReviewListener,
+} from "./gitCommitReview/gitCommitReviewLifecycle"
 
-let commitListener: GitCommitListener | undefined
-
-export function disposeGitCommitListener(): void {
-	if (commitListener) {
-		commitListener.getDisposables().forEach((d) => d.dispose())
-		commitListener = undefined
-	}
-}
-
+/**
+ * Initialise the full Code Review subsystem.
+ *
+ * This is intentionally a thin facade — it wires together cloud lifecycle,
+ * classic controller creation, command registration, and the mode-agnostic
+ * Git commit listener, then delegates all real work to the appropriate modules.
+ */
 export function initCodeReview(
 	context: vscode.ExtensionContext,
 	provider: ClineProvider,
 	outputChannel: vscode.OutputChannel,
 ) {
-	const reviewInstance = CodeReviewService.getInstance()
-	const commentService = CommentService.getInstance()
-	reviewInstance.setProvider(provider)
-	reviewInstance.setCommentService(commentService)
-	const isJetbrains = isJetbrainsPlatform()
+	const cloudController = initCloudReviewLifecycle(context, outputChannel)
 
-	if (!isJetbrains) {
-		commitListener = new GitCommitListener(context, reviewInstance)
-		commitListener.startListening().catch((error) => {
-			provider.log(`[GitCommitListener] Failed to start: ${error}`)
-		})
-	} else {
-		console.log("Running on JetBrains platform, Git extension dependency not required")
-	}
-
-	const startFileOrFolderReview = async (paths: readonly string[], mode: Mode = "review") => {
-		console.log(`[CodeReview] startFileOrFolderReview called with mode=${mode}`)
-		const visibleProvider = await ClineProvider.getInstance()
-		if (!visibleProvider) {
-			return
-		}
-		reviewInstance.setProvider(visibleProvider)
-		if (!(await reviewInstance.checkApiProviderSupport())) {
-			return
-		}
-		const cwd = visibleProvider.cwd.toPosix()
-		await reviewInstance.startReview(
-			{
-				type: ReviewTargetType.FILE,
-				data: paths.map((filePath) => ({
-					file_path: toRelativePath(filePath.toPosix(), cwd),
-				})),
-			},
-			mode,
-		)
-	}
-
-	const startUriFileOrFolderReview = async (selectedUris: readonly vscode.Uri[], mode: Mode = "review") => {
-		await startFileOrFolderReview(
-			selectedUris.map((uri) => uri.fsPath),
-			mode,
-		)
-	}
-
-	const startSelectedCodeReview = async (mode: Mode = "review"): Promise<void> => {
-		console.log(`[CodeReview] startSelectedCodeReview called with mode=${mode}`)
-		const visibleProvider = await ClineProvider.getInstance()
-		const editor = vscode.window.activeTextEditor
-		if (!visibleProvider || !editor) {
-			return
-		}
-		reviewInstance.setProvider(visibleProvider)
-		if (!(await reviewInstance.checkApiProviderSupport())) {
-			return
-		}
-		const fileUri = editor.document.uri
-		const range = editor.selection
-		const cwd = visibleProvider.cwd.toPosix()
-		const filePath = toRelativePath(fileUri.fsPath.toPosix(), cwd)
-		const params = {
-			filePath,
-			endLine: range.end.line + 1 + "",
-			startLine: range.start.line + 1 + "",
-			selectedText: editor.document.getText(range),
-		}
-		const args = `@/${filePath}:${params.startLine}-${params.endLine}`
-		const prompt = await reviewInstance.buildReviewPrompt(mode as "review" | "security-review", args)
-
-		await reviewInstance.createReviewTask(
-			prompt,
-			{
-				type: ReviewTargetType.CODE,
-				data: [
-					{
-						file_path: filePath,
-						line_range: [range.start.line, range.end.line],
-					},
-				],
-			},
-			{ mode },
-		)
-	}
-
-	const commandMap: Partial<Record<CostrictCommandId, any>> = {
-		codeReviewButtonClicked: async () => {
-			let visibleProvider = getVisibleProviderOrLog(outputChannel)
-
-			if (!visibleProvider) {
-				visibleProvider = await ClineProvider.getInstance()
-			}
-
-			visibleProvider?.postMessageToWebview({ type: "action", action: "codeReviewButtonClicked" })
-		},
-		codeReview: async () => startSelectedCodeReview(),
-		securityReviewCode: async () => startSelectedCodeReview("security-review"),
-		reviewFilesAndFolders: async (_: vscode.Uri, selectedUris: vscode.Uri[]) => {
-			await startUriFileOrFolderReview(selectedUris)
-		},
-		securityFilesAndFolders: async (_: vscode.Uri, selectedUris: vscode.Uri[]) => {
-			await startUriFileOrFolderReview(selectedUris, "security-review")
-		},
-		acceptIssue: async (thread: vscode.CommentThread) => {
-			const visibleProvider = await ClineProvider.getInstance()
-			if (!visibleProvider) {
-				return
-			}
-			reviewInstance.setProvider(visibleProvider)
-			const comments = thread.comments as ReviewComment[]
-			comments.forEach(async (comment) => {
-				if (comment.contextValue !== "Intial") {
-					await reviewInstance.updateHistoryIssueStatus(comment.id, comment.contextValue!, IssueStatus.ACCEPT)
-					return
-				}
-				reviewInstance.updateIssueStatus(comment.id, IssueStatus.ACCEPT)
-			})
-		},
-		rejectIssue: async (thread: vscode.CommentThread) => {
-			const visibleProvider = await ClineProvider.getInstance()
-			if (!visibleProvider) {
-				return
-			}
-			reviewInstance.setProvider(visibleProvider)
-			const comments = thread.comments as ReviewComment[]
-			comments.forEach(async (comment) => {
-				if (comment.contextValue !== "Intial") {
-					await reviewInstance.updateHistoryIssueStatus(comment.id, comment.contextValue!, IssueStatus.REJECT)
-					return
-				}
-				reviewInstance.updateIssueStatus(comment.id, IssueStatus.REJECT)
-			})
-		},
-		askReviewSuggestionWithAI: async (thread: vscode.CommentThread) => {
-			const visibleProvider = await ClineProvider.getInstance()
-			if (!visibleProvider) {
-				return
-			}
-			reviewInstance.setProvider(visibleProvider)
-			const comment = thread.comments[0] as ReviewComment
-			if (comment) {
-				reviewInstance.askWithAI(
-					comment.id,
-					comment.contextValue === "intial" ? undefined : comment.contextValue,
-				)
-			}
-		},
-		reviewCommit: async () => {
-			const visibleProvider = await ClineProvider.getInstance()
-			if (!visibleProvider) {
-				return
-			}
-			reviewInstance.setProvider(visibleProvider)
-			if (!(await reviewInstance.checkApiProviderSupport())) {
-				return
-			}
-			visibleProvider.log("[CodeReview] Reviewing git changes")
-
-			// 获取当前 git 变更的文件列表
-			const cwd = visibleProvider.cwd.toPosix()
-			const changedFiles = await getChangedFiles(cwd)
-
-			if (changedFiles.length === 0) {
-				vscode.window.showInformationMessage(t("common:review.tip.no_changed_files"))
-				return
-			}
-
-			visibleProvider.log(`[CodeReview] Found ${changedFiles.length} changed files`)
-
-			const reviewPrompt = await reviewInstance.buildReviewPrompt("review", "@git-changes")
-			reviewInstance.createReviewTask(
-				reviewPrompt,
-				{
-					type: ReviewTargetType.FILE,
-					data: changedFiles.map((file_path) => ({
-						file_path,
-					})),
-				},
-				{ mode: "review" },
-			)
-		},
-		...(!isJetbrains
-			? {}
-			: {
-					codeReviewJetbrains: async (args: any) => {
-						const visibleProvider = await ClineProvider.getInstance()
-						if (!visibleProvider) {
-							return
-						}
-						reviewInstance.setProvider(visibleProvider)
-						if (!(await reviewInstance.checkApiProviderSupport())) {
-							return
-						}
-						visibleProvider.log(`[CodeReview] start review ${args}`)
-
-						const data = args?.[0]?.[0]
-						if (!data) {
-							visibleProvider.log("[CodeReview] Invalid args structure")
-							return
-						}
-
-						const { startLine, endLine, filePath, selectedText } = data
-						visibleProvider.log(
-							`[CodeReview] extracted data: filePath=${filePath}, startLine=${startLine}, endLine=${endLine}`,
-						)
-
-						const cwd = visibleProvider.cwd.toPosix()
-						const params = {
-							filePath,
-							endLine: endLine + "",
-							startLine: startLine + "",
-							selectedText: selectedText,
-						}
-						const reviewArgs = `@/${filePath}:${startLine}-${endLine}`
-						const prompt = await reviewInstance.buildReviewPrompt("review", reviewArgs)
-						reviewInstance.createReviewTask(
-							prompt,
-							{
-								type: ReviewTargetType.CODE,
-								data: [
-									{
-										file_path: toRelativePath(filePath.toPosix(), cwd),
-										line_range: [startLine, endLine],
-									},
-								],
-							},
-							{ mode: "review" },
-						)
-					},
-					reviewFilesAndFoldersJetbrains: async (args: any) => {
-						const data = args?.[0]?.[0]
-						const filePaths = data?.filePaths
-						if (!filePaths) {
-							const visibleProvider = await ClineProvider.getInstance()
-							visibleProvider?.log("[CodeReview] Invalid args structure")
-							return
-						}
-						await startFileOrFolderReview(filePaths, "review")
-					},
-					securityFilesAndFoldersJetbrains: async (args: any) => {
-						const data = args?.[0]?.[0]
-						const filePaths = data?.filePaths
-						if (!filePaths) {
-							const visibleProvider = await ClineProvider.getInstance()
-							visibleProvider?.log("[CodeReview] Invalid args structure")
-							return
-						}
-						await startFileOrFolderReview(filePaths, "security-review")
-					},
-					acceptIssueJetbrains: async (args: any) => {
-						const visibleProvider = await ClineProvider.getInstance()
-						if (!visibleProvider) {
-							return
-						}
-						reviewInstance.setProvider(visibleProvider)
-						visibleProvider.log(`[CodeReview] accept issue ${JSON.stringify(args)}`)
-						const data = args?.[0]?.[0]
-						if (!data) {
-							visibleProvider.log("[CodeReview] Invalid args structure")
-							return
-						}
-
-						const { id } = data
-						reviewInstance.updateIssueStatus(id, IssueStatus.ACCEPT)
-					},
-					rejectIssueJetbrains: async (args: any) => {
-						const visibleProvider = await ClineProvider.getInstance()
-						if (!visibleProvider) {
-							return
-						}
-						reviewInstance.setProvider(visibleProvider)
-						visibleProvider.log(`[CodeReview] reject issue ${JSON.stringify(args)}`)
-						const data = args?.[0]?.[0]
-						if (!data) {
-							visibleProvider.log("[CodeReview] Invalid args structure")
-							return
-						}
-
-						const { id } = data
-						reviewInstance.updateIssueStatus(id, IssueStatus.REJECT)
-					},
-					askReviewSuggestionWithAIJetbrains: async (args: any) => {
-						const visibleProvider = await ClineProvider.getInstance()
-						if (!visibleProvider) {
-							return
-						}
-						visibleProvider.log(`[CodeReview] ask review suggestion with AI ${JSON.stringify(args)}`)
-						reviewInstance.setProvider(visibleProvider)
-						const data = args?.[0]?.[0]
-						if (!data) {
-							visibleProvider.log("[CodeReview] Invalid args structure")
-							return
-						}
-
-						const { id } = data
-						if (id) {
-							reviewInstance.askWithAI(id)
-						}
-					},
-				}),
-	}
-	for (const [id, callback] of Object.entries(commandMap)) {
-		const command = getCommand(id as CostrictCommandId)
-		context.subscriptions.push(vscode.commands.registerCommand(command, callback))
-	}
+	const classicController = createClassicReviewController({ context, provider })
+	registerCodeReviewCommands({ context, outputChannel, classicController, cloudController })
+	startGitCommitReviewListener(context, provider, cloudController)
 }
+
+/**
+ * Dispose the Git commit review listener (supports both classic and cloud modes).
+ * Safe to call regardless of whether the listener was started.
+ */
+export function disposeGitCommitListener(): void {
+	disposeGitCommitReviewListener()
+}
+
+// ── Compatibility re-exports ───────────────────────────────────────────
 
 export { CodeReviewService, ReviewTargetType, HistoryManager }
 export type { ReviewHistoryEntry } from "../../../shared/codeReview"

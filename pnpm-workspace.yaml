@@ -12,7 +12,6 @@ onlyBuiltDependencies:
     - core-js
     - esbuild
     - keytar
-    - node-pty
     - puppeteer-chromium-resolver
     - sharp
 

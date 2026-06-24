@@ -19,7 +19,11 @@ import { t } from "../i18n"
 import { EditorContext, EditorUtils } from "../integrations/editor/EditorUtils"
 import * as path from "path"
 import { handleGenerateCommitMessage } from "../core/costrict/commit"
-import { getTerminalManager } from "../core/costrict/cli-wrap"
+import { getConfiguredUiMode, UiMode, UI_MODE_OPTIONS } from "../shared/uiMode"
+import type { AssistantUIContextMessage } from "../core/cs-cloud/extension/types"
+import { sendContextToCloudWithFocus, reloadActiveCloudProvider } from "../core/cs-cloud/extension/contextBridge"
+import { CostrictAuthService } from "../core/costrict/auth"
+import { readCostrictAccessToken } from "../core/costrict/runtime-config"
 
 interface UriSource {
 	path: string
@@ -79,6 +83,46 @@ export type RegisterCommandOptions = {
 	taskId?: string
 }
 
+/**
+ * 检查用户是否已登录 CoStrict。
+ * 先通过 CostrictAuthService 查询 token，再回退到 ~/.costrict/share/auth.json。
+ */
+async function isCostrictLoggedIn(): Promise<boolean> {
+	try {
+		const token = await CostrictAuthService.getInstance().getCurrentAccessToken()
+		if (token) return true
+	} catch {
+		// 服务未初始化时静默忽略
+	}
+
+	// Fallback: 从本地 auth 文件读取
+	try {
+		const data = readCostrictAccessToken()
+		if (data?.access_token) return true
+	} catch {
+		// 文件不存在或格式错误时静默忽略
+	}
+
+	return false
+}
+
+/**
+ * 应用 UI 模式切换：更新配置、setContext、聚焦对应 sidebar，最后 reload window。
+ */
+async function applyUiMode(mode: UiMode, label: string) {
+	await vscode.workspace
+		.getConfiguration(Package.commandIDPrefix)
+		.update("uiMode", mode, vscode.ConfigurationTarget.Global)
+	await vscode.commands.executeCommand("setContext", `${Package.commandIDPrefix}.uiMode`, mode)
+	if (mode === "cloud") {
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+	} else {
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.SidebarProvider.focus`)
+	}
+	void vscode.window.showInformationMessage(`Switched to ${label}`)
+	await vscode.commands.executeCommand("workbench.action.reloadWindow")
+}
+
 export const registerCommands = (options: RegisterCommandOptions) => {
 	const { context } = options
 
@@ -126,7 +170,13 @@ export const getCommandsMap = ({
 
 		return openClineInNewTab({ context, outputChannel, taskId: "" })
 	},
-	openNewButtonClicked: () => {
+	openNewButtonClicked: async () => {
+		const uiMode = await vscode.workspace.getConfiguration(Package.commandIDPrefix).get<UiMode>("uiMode")
+		if (uiMode === "cloud") {
+			vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+
+			return
+		}
 		vscode.commands.executeCommand(`${Package.commandIDPrefix}.SidebarProvider.focus`)
 	},
 	openInNewTab: (taskId?: string) => openClineInNewTab({ context, outputChannel, taskId }),
@@ -142,6 +192,81 @@ export const getCommandsMap = ({
 		visibleProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
 		// Also explicitly post the visibility message to trigger scroll reliably
 		visibleProvider.postMessageToWebview({ type: "action", action: "didBecomeVisible" })
+	},
+	switchUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const selection = await vscode.window.showQuickPick(
+			UI_MODE_OPTIONS.map((item) => ({
+				...item,
+				detail: item.value === currentMode ? "Current mode" : undefined,
+			})),
+			{
+				title: "Switch CoStrict UI Mode",
+				placeHolder: "Choose which UI mode to switch to",
+				ignoreFocusOut: true,
+			},
+		)
+
+		if (!selection || selection.value === currentMode) {
+			return
+		}
+
+		// 切换到 Cloud 模式前校验登录状态
+		if (selection.value === "cloud") {
+			const loggedIn = await isCostrictLoggedIn()
+			if (!loggedIn) {
+				const action = await vscode.window.showWarningMessage(
+					"Please log in to CoStrict first before switching to Cloud mode.",
+					"Login",
+				)
+				if (action === "Login") {
+					try {
+						await CostrictAuthService.getInstance().startLogin()
+						// 登录成功，继续完成 Cloud 模式切换
+					} catch (error) {
+						void vscode.window.showErrorMessage(
+							`Login failed: ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return
+					}
+				} else {
+					return
+				}
+			}
+		}
+
+		await applyUiMode(selection.value, selection.label)
+	},
+	toggleUiMode: async () => {
+		const currentMode = getConfiguredUiMode()
+		const targetMode: UiMode = currentMode === "classic" ? "cloud" : "classic"
+		const targetLabel = targetMode === "classic" ? "Classic Mode" : "Cloud Mode"
+
+		// 切换到 Cloud 模式前校验登录状态
+		if (targetMode === "cloud") {
+			const loggedIn = await isCostrictLoggedIn()
+			if (!loggedIn) {
+				const action = await vscode.window.showWarningMessage(
+					"Please log in to CoStrict first before switching to Cloud mode.",
+					"Login",
+				)
+				if (action === "Login") {
+					try {
+						await CostrictAuthService.getInstance().startLogin()
+						// 登录成功，继续完成 Cloud 模式切换
+					} catch (error) {
+						void vscode.window.showErrorMessage(
+							`Login failed: ${error instanceof Error ? error.message : String(error)}`,
+						)
+						return
+					}
+				} else {
+					return
+				}
+			}
+		}
+
+		await applyUiMode(targetMode, targetLabel)
 	},
 	historyButtonClicked: () => {
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
@@ -228,6 +353,14 @@ export const getCommandsMap = ({
 		}
 	},
 	reloadWebview: async () => {
+		if (getConfiguredUiMode() === "cloud") {
+			if (await reloadActiveCloudProvider()) {
+				return
+			}
+			await vscode.commands.executeCommand(`${Package.commandIDPrefix}.AssistantUISidebarProvider.focus`)
+			return
+		}
+
 		const visibleProvider = getVisibleProviderOrLog(outputChannel)
 
 		if (!visibleProvider) {
@@ -246,6 +379,64 @@ export const getCommandsMap = ({
 		visibleProvider.postMessageToWebview({ type: "acceptInput" })
 	},
 	addFileToContext: async (...args: [UriSource] | [unknown, UriSource[]]) => {
+		// Cloud 模式：不依赖 ClineProvider，提前分流
+		if (getConfiguredUiMode() === "cloud") {
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+			if (!cwd) return
+
+			let sources: (UriSource | EditorContext)[] = []
+			if (args.length > 1 && Array.isArray(args[1]) && args[1].length > 0) {
+				sources = args[1]
+			} else {
+				let singleSource: UriSource | EditorContext | undefined | null
+				if (args.length > 0) {
+					;[singleSource] = args as [UriSource]
+				} else {
+					singleSource = EditorUtils.getEditorContext()
+				}
+				if (singleSource) {
+					sources = [singleSource]
+				}
+			}
+
+			if (sources.length === 0) return
+
+			const processedResources = (
+				await Promise.all(
+					sources.map(async (source): Promise<ProcessedResource | null> => {
+						if (!(source as UriSource).path && !(source as EditorContext).filePath) {
+							return null
+						}
+						const resourceUri = vscode.Uri.parse(
+							(source as UriSource).path || path.join(cwd, (source as EditorContext).filePath),
+						)
+						return createAliasedPath(resourceUri)
+					}),
+				)
+			).filter((p): p is ProcessedResource => !!p)
+
+			if (processedResources.length === 0) return
+
+			const textPaths: string[] = []
+			const imageSources: string[] = []
+			for (const resource of processedResources) {
+				if (resource.type === "path") textPaths.push(resource.content)
+				else if (resource.type === "image") imageSources.push(resource.content)
+			}
+
+			const chatMessage = textPaths.length > 0 ? textPaths.join(" ") + " " : ""
+			const payload: AssistantUIContextMessage = {
+				type: "assistantUIContext",
+				text: chatMessage,
+				focus: true,
+			}
+			if (imageSources.length > 0) payload.images = imageSources
+
+			await sendContextToCloudWithFocus(payload)
+			return
+		}
+
+		// Classic 模式：现有逻辑不变
 		const visibleProvider = await ClineProvider.getInstance()
 		if (!visibleProvider) {
 			return
@@ -300,28 +491,6 @@ export const getCommandsMap = ({
 		}
 
 		const chatMessage = textPaths.length > 0 ? textPaths.join(" ") + " " : ""
-
-		// When the CLI tab is active, forward file paths directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running && chatMessage.trim().length > 0) {
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + chatMessage + PASTE_END)
-				await Promise.all([
-					visibleProvider.postMessageToWebview({
-						type: "action",
-						action: "switchTab",
-						tab: "cs-cli",
-					}),
-					visibleProvider.postMessageToWebview({
-						type: "CostrictCliToast",
-						text: "File path inserted into CoStrict CLI",
-					}),
-				])
-				return
-			}
-		}
 
 		const payload: { text: string; images?: string[] } = {
 			text: chatMessage,

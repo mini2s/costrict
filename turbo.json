@@ -1,6 +1,11 @@
 {
 	"$schema": "https://turbo.build/schema.json",
-	"globalEnv": ["ZGSM_PUBLIC_KEY", "COSTRICT_PUBLIC_KEY", "COSTRICT_BASE_URL", "NODE_ENV"],
+	"globalEnv": [
+		"COSTRICT_PKG_NAME", "VSCODE_DEBUG_MODE", "COSTRICT_PKG_OUTPUT_CHANNEL",
+		"ZGSM_PUBLIC_KEY", "COSTRICT_PUBLIC_KEY", "COSTRICT_BASE_URL", 
+		"CS_CLOUD_UI_DIST_PATH", "NODE_ENV",
+		"COSTRICT_PKG_VERSION", "COSTRICT_PKG_BUILD_TIME"
+	],
 	"tasks": {
 		"lint": {},
 		"check-types": {},

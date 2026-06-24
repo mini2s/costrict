@@ -574,6 +574,15 @@ describe("ChatView scroll behavior regression coverage", () => {
 		await waitForCallsSettled()
 		harness.atBottomAfterCalls = Number.POSITIVE_INFINITY
 
+		// After hydration, checkpoint scrolls should NOT report atBottom(true).
+		// Scrolling to a checkpoint moves away from the bottom, so the mock must
+		// emit atBottom(false) to keep the scroll-to-bottom/checkpoint buttons
+		// visible. Without this, the delayed atBottom(true) callback from the mock
+		// can fire between clicks, call enterAnchoredFollowing(), hide the
+		// checkpoint button (it is rendered inside {showScrollToBottom ? …}),
+		// and cause subsequent clicks on the stale DOM reference to be no-ops.
+		harness.atBottomAfterCalls = Number.POSITIVE_INFINITY
+
 		await act(async () => {
 			fireEvent.keyDown(window, { key: "PageUp" })
 		})

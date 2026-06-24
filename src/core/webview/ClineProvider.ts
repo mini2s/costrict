@@ -98,6 +98,10 @@ import { OrganizationAllowListViolationError } from "../../utils/errors"
 
 import { setPanel } from "../../activate/registerCommands"
 
+import { getConfiguredUiMode } from "../../shared/uiMode"
+import type { AssistantUIContextMessage } from "../cs-cloud/extension/types"
+import { sendContextToCloudWithFocus } from "../cs-cloud/extension/contextBridge"
+
 import { t } from "../../i18n"
 
 // import { buildApiHandler } from "../../api"
@@ -126,8 +130,6 @@ import { CostrictAuthCommands, CostrictAuthConfig } from "../costrict/auth"
 import { generateNewSessionClientId, getClientId } from "../../utils/getClientId"
 import { defaultCodebaseIndexEnabled } from "../../services/code-index/constants"
 import { CodeReviewService, ReviewTargetType } from "../costrict/code-review"
-import { getTerminalManager } from "../costrict/cli-wrap"
-import { getContextSyncService } from "../costrict/cli-wrap/contextSync"
 import { defaultLang } from "../../utils/language"
 import { REQUESTY_BASE_URL } from "../../shared/utils/requesty"
 import { isJetbrainsPlatform } from "../../utils/platform"
@@ -180,11 +182,7 @@ export class ClineProvider
 	private taskEventListeners: WeakMap<Task, Array<() => void>> = new WeakMap()
 	private currentWorkspacePath: string | undefined
 	private _disposed = false
-	/**
-	 * Tracks which tab is currently active in the Webview.
-	 * When "cs-cli" is active, postStateToWebview calls are suppressed to save resources.
-	 * A fresh state push is triggered when leaving the cs-cli tab.
-	 */
+	// Tracks which tab is currently active in the Webview.
 	private _activeTab: string = "chat"
 
 	private recentTasksCache?: string[]
@@ -221,6 +219,15 @@ export class ClineProvider
 	private pendingStatePush: { resolve: (() => void) | null; reject: ((reason?: any) => void) | null } | null = null
 	private statePushFrameId: ReturnType<typeof setTimeout> | null = null
 	private static readonly STATE_PUSH_BATCH_MS = 16 // 1 frame at 60fps
+
+	private pendingStatePushWithoutHistory: boolean = false
+	private statePushWithoutHistoryFrameId: ReturnType<typeof setTimeout> | null = null
+
+	private authCache: {
+		claudeCode?: { value: boolean; ts: number }
+		openAiCodex?: { value: boolean; ts: number }
+	} = {}
+	private static readonly AUTH_CACHE_TTL_MS = 30_000
 
 	public isViewLaunched = false
 	public settingsImportedAt?: number
@@ -261,8 +268,6 @@ export class ClineProvider
 		// Register this provider with the telemetry service to enable it to add
 		// properties like mode and provider.
 		TelemetryService.instance.setProvider(this)
-
-		this._workspaceTracker = new WorkspaceTracker(this)
 
 		this.providerSettingsManager = new ProviderSettingsManager(this.context)
 
@@ -884,13 +889,6 @@ export class ClineProvider
 			this.pendingStatePush = null
 		}
 
-		// Stop CLI terminal process if running
-		const terminalManager = getTerminalManager()
-		if (terminalManager.running) {
-			await terminalManager.stop()
-			this.log("Stopped CLI terminal process")
-		}
-
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 
@@ -951,32 +949,48 @@ export class ClineProvider
 		// Capture telemetry for code action usage
 		TelemetryService.instance.captureCodeActionUsed(promptType)
 
+		// Cloud 模式：不依赖 ClineProvider，提前分流
+		if (getConfiguredUiMode() === "cloud") {
+			if (command === "addToContext") {
+				const { pathOnly, selectedText } = supportPrompt.createPathWithSelectedText(
+					promptType as SupportPromptType,
+					params,
+					{},
+				)
+				const message: AssistantUIContextMessage = {
+					type: "assistantUIContext",
+					text: pathOnly.length > 0 ? `${pathOnly} ` : "",
+					previewText: selectedText,
+					focus: true,
+				}
+				await sendContextToCloudWithFocus(message)
+				return
+			}
+
+			// explainCode / fixCode / improveCode: cloud has no createTask
+			// equivalent, so send the built prompt as an auto-sent message in a
+			// new thread (same pattern as cloud code review).
+			if (command === "explainCode" || command === "fixCode" || command === "improveCode") {
+				const prompt = supportPrompt.create(promptType as SupportPromptType, params, {})
+				const message: AssistantUIContextMessage = {
+					type: "assistantUIContext",
+					text: prompt,
+					focus: true,
+					newThread: true,
+					autoSend: true,
+				}
+				await sendContextToCloudWithFocus(message)
+				return
+			}
+			// 其他 code action：目前 Cloud 不处理
+			return
+		}
+
+		// Classic 模式：现有逻辑不变
 		const visibleProvider = await ClineProvider.getInstance()
 
 		if (!visibleProvider) {
 			return
-		}
-
-		// When the CLI tab is active, forward context directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const { customSupportPrompts } = await visibleProvider.getState()
-			const prompt = supportPrompt.create(promptType as SupportPromptType, params, customSupportPrompts)
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running) {
-				// Use bracketed paste mode so the Ink-based CLI receives the entire
-				// prompt as a single paste event rather than interpreting newlines
-				// as individual Enter keypresses.  Only paste, do not auto-submit.
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + prompt + PASTE_END)
-				// Ensure the webview switches to the CLI tab so the user sees the result
-				await visibleProvider.postMessageToWebview({
-					type: "action",
-					action: "switchTab",
-					tab: "cs-cli",
-				})
-				return
-			}
 		}
 
 		const { customSupportPrompts } = await visibleProvider.getState()
@@ -1035,31 +1049,27 @@ export class ClineProvider
 	): Promise<void> {
 		TelemetryService.instance.captureCodeActionUsed(promptType)
 
+		// Cloud 模式：不依赖 ClineProvider，提前分流
+		if (getConfiguredUiMode() === "cloud") {
+			if (command === "terminalAddToContext") {
+				const prompt = supportPrompt.create(promptType, params)
+				const message: AssistantUIContextMessage = {
+					type: "assistantUIContext",
+					text: `${prompt}\n\n`,
+					focus: true,
+				}
+				await sendContextToCloudWithFocus(message)
+				return
+			}
+			// 其他 terminal action：目前 Cloud 不处理
+			return
+		}
+
+		// Classic 模式：现有逻辑不变
 		const visibleProvider = await ClineProvider.getInstance()
 
 		if (!visibleProvider) {
 			return
-		}
-
-		// When the CLI tab is active, forward context directly to the CLI terminal
-		if (visibleProvider.activeTab === "cs-cli") {
-			const { customSupportPrompts } = await visibleProvider.getState()
-			const prompt = supportPrompt.create(promptType, params, customSupportPrompts)
-			const terminalManager = getTerminalManager()
-			if (terminalManager.running) {
-				// Use bracketed paste mode so the Ink-based CLI receives the entire
-				// prompt as a single paste event rather than interpreting newlines
-				// as individual Enter keypresses.  Only paste, do not auto-submit.
-				const PASTE_START = "\x1b[200~"
-				const PASTE_END = "\x1b[201~"
-				await terminalManager.write(PASTE_START + prompt + PASTE_END)
-				await visibleProvider.postMessageToWebview({
-					type: "action",
-					action: "switchTab",
-					tab: "cs-cli",
-				})
-				return
-			}
 		}
 
 		const { customSupportPrompts } = await visibleProvider.getState()
@@ -1123,6 +1133,10 @@ export class ClineProvider
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.view = webviewView
 		const inTabMode = "onDidChangeViewState" in webviewView
+
+		if (!this._workspaceTracker) {
+			this._workspaceTracker = new WorkspaceTracker(this)
+		}
 
 		if (inTabMode) {
 			setPanel(webviewView, "tab")
@@ -1547,7 +1561,7 @@ export class ClineProvider
 			"default-src 'none'",
 			`font-src ${webview.cspSource} data:`,
 			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
-			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data:`,
+			`img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com https://*.githubusercontent.com data: blob:`,
 			`media-src ${webview.cspSource}`,
 			`script-src 'unsafe-eval' ${webview.cspSource} https://* https://*.posthog.com http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src ${webview.cspSource} ${openRouterDomain} https://* https://*.posthog.com ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
@@ -1612,6 +1626,7 @@ export class ClineProvider
 		])
 		const imagesUri = getUri(webview, this.contextProxy.extensionUri, ["assets", "images"])
 		const audioUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "audio"])
+		const webviewBuildUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "build"])
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -1641,7 +1656,8 @@ export class ClineProvider
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com 'strict-dynamic'; connect-src ${webview.cspSource} ${openRouterDomain} https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com;">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https://storage.googleapis.com https://img.clerk.com data: blob:; media-src ${webview.cspSource}; script-src ${webview.cspSource} 'wasm-unsafe-eval' 'nonce-${nonce}' https://us-assets.i.posthog.com; connect-src ${webview.cspSource} ${openRouterDomain} https://avatars.githubusercontent.com https://openrouter.ai https://api.requesty.ai https://us.i.posthog.com https://us-assets.i.posthog.com;">
+            <base href="${webviewBuildUri}/">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
 			<link href="${codiconsUri}" rel="stylesheet" />
 			<script nonce="${nonce}">
@@ -2206,7 +2222,7 @@ export class ClineProvider
 			return this.showTaskWithId(id)
 		}
 
-		await vscode.commands.executeCommand("costrict.openInNewTab", id)
+		await vscode.commands.executeCommand(`${Package.commandIDPrefix}.openInNewTab`, id)
 	}
 
 	async exportTaskWithId(id: string) {
@@ -2436,23 +2452,10 @@ export class ClineProvider
 		await this.postStateToWebview()
 	}
 
-	/**
-	 * Called by the webview message handler when the user switches tabs.
-	 * When the active tab is "cs-cli", state pushes are suppressed to conserve resources.
-	 * When the user leaves "cs-cli", a fresh state is pushed immediately so the chat UI
-	 * is fully up-to-date when it becomes visible again.
-	 */
+	/** Called by the webview message handler when the user switches tabs. */
 	public setActiveTab(tab: string): void {
 		if (this._activeTab === tab) return
 		this._activeTab = tab
-		if (tab === "cs-cli") {
-			getContextSyncService(false)?.resume()
-			this.postStateToWebview().catch((err) => {
-				this.log(`Failed to post state on wake from cs-cli tab: ${err}`, "error")
-			})
-		} else {
-			getContextSyncService(false)?.pause()
-		}
 	}
 
 	public get activeTab(): string {
@@ -2460,12 +2463,6 @@ export class ClineProvider
 	}
 
 	async postStateToWebview(options?: { force?: boolean }): Promise<void> {
-		// Suppress state pushes while the cs-cli tab is active to save resources,
-		// unless this is an explicit forced hydration for a newly launched webview.
-		if (this._activeTab === "cs-cli" && !options?.force) {
-			return
-		}
-
 		// If force is true, execute immediately without batching
 		if (options?.force) {
 			const state = await this.getStateToPostToWebview()
@@ -2512,19 +2509,29 @@ export class ClineProvider
 	 *   `taskHistoryUpdated` / `taskHistoryItemUpdated`.
 	 */
 	async postStateToWebviewWithoutTaskHistory(): Promise<void> {
-		// Suppress state pushes while the cs-cli tab is active to save resources
-		if (this._activeTab === "cs-cli") {
+		if (this.pendingStatePushWithoutHistory) {
 			return
 		}
-		const state = await this.buildStateForWebview({ includeTaskHistory: false })
-		this.clineMessagesSeq++
-		state.clineMessagesSeq = this.clineMessagesSeq
-		this.postMessageToWebview({ type: "state", state })
 
-		// // Preserve existing MDM redirect behavior
-		// if (this.mdmService?.requiresCloudAuth() && !this.checkMdmCompliance()) {
-		// 	await this.postMessageToWebview({ type: "action", action: "cloudButtonClicked" })
-		// }
+		this.pendingStatePushWithoutHistory = true
+
+		return new Promise((resolve, reject) => {
+			this.statePushWithoutHistoryFrameId = setTimeout(async () => {
+				this.statePushWithoutHistoryFrameId = null
+
+				try {
+					const state = await this.buildStateForWebview({ includeTaskHistory: false })
+					this.clineMessagesSeq++
+					state.clineMessagesSeq = this.clineMessagesSeq
+					this.postMessageToWebview({ type: "state", state })
+					resolve()
+				} catch (error) {
+					reject(error)
+				} finally {
+					this.pendingStatePushWithoutHistory = false
+				}
+			}, ClineProvider.STATE_PUSH_BATCH_MS)
+		})
 	}
 
 	/**
@@ -2539,10 +2546,6 @@ export class ClineProvider
 	 *   (cloud auth, org settings, profiles, etc.) without interfering with task message streaming.
 	 */
 	async postStateToWebviewWithoutClineMessages(): Promise<void> {
-		// Suppress state pushes while the cs-cli tab is active to save resources
-		if (this._activeTab === "cs-cli") {
-			return
-		}
 		const state = await this.buildStateForWebview({ includeClineMessages: false, includeTaskHistory: false })
 		this.postMessageToWebview({ type: "state", state })
 

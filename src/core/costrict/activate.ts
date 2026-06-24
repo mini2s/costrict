@@ -6,7 +6,6 @@
  */
 
 import * as vscode from "vscode"
-import { getTerminalManager, cleanupStaleProcesses } from "./cli-wrap"
 import type { ClineProvider } from "../webview/ClineProvider"
 import { registerAutoCompletionProvider, CompletionStatusBar } from "./auto-complete"
 
@@ -91,9 +90,6 @@ export async function activate(
 	const isJetbrains = isJetbrainsPlatform()
 	const isVscodePlatform = !isJetbrains && !isCliPatform()
 	const logger = createLogger(Package.outputChannel)
-
-	void cleanupStaleProcesses(context)
-	getTerminalManager().setExtensionContext(context)
 
 	initErrorCodeManager(provider)
 	await initialize(provider, logger)
@@ -236,7 +232,6 @@ export async function activate(
  * Deactivation function for ZGSM
  */
 export async function deactivate() {
-	void getTerminalManager().dispose()
 	void NotificationService.getInstance().stopPeriodicFetch()
 	void disposeGitCommitListener()
 	void disconnectIPC()

@@ -90,7 +90,6 @@ const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
 import { CostrictAuthConfig, CostrictAuthService, CostrictAuthStorage } from "../costrict/auth"
 import { CodeReviewService } from "../costrict/code-review"
-import { getTerminalManager, getCostrictCliInstallDocsUrl } from "../costrict/cli-wrap"
 import { ErrorCodeManager } from "../costrict/error-code"
 import { writeCostrictRuntimeAuth } from "../costrict/runtime-config"
 import { fetchCostrictQuotaInfo, fetchCostrictInviteCode } from "../../api/providers/fetchers/costrict"
@@ -616,66 +615,16 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
+		case "switchUiMode": {
+			await vscode.commands.executeCommand(`${Package.commandIDPrefix}.toggleUiMode`)
+			break
+		}
 		case "checkReviewSuggestion":
 			await CodeReviewService.getInstance().setActiveIssue(message.issueId!)
 			break
 		case "cancelReviewTask":
 			await CodeReviewService.getInstance().cancelCurrentTask()
 			break
-		// CostrictCli terminal management
-		case "CostrictCliStart": {
-			const terminalManager = getTerminalManager()
-			terminalManager.setMessageSender((msg) => provider.postMessageToWebview(msg))
-			await terminalManager.start({
-				cols: message.cols ?? 80,
-				rows: message.rows ?? 24,
-			})
-			if (!terminalManager.running || !terminalManager.getPort()) {
-				break
-			}
-			// Wait for the CLI HTTP server to become ready and notify the webview
-			const httpReady = await terminalManager.waitForReady()
-			await provider.postMessageToWebview({
-				type: "CostrictCliHttpReady",
-				values: {
-					ready: httpReady,
-					kind: httpReady ? undefined : "startup-timeout",
-					port: terminalManager.getPort(),
-					docsUrl: httpReady ? undefined : getCostrictCliInstallDocsUrl(),
-				},
-			})
-			break
-		}
-		case "CostrictCliInput":
-			if (message.data) {
-				await getTerminalManager().write(message.data)
-			}
-			break
-		case "CostrictCliRequestPaste": {
-			const clipboardText = await vscode.env.clipboard.readText()
-			if (!clipboardText) {
-				await provider.postMessageToWebview({ type: "CostrictCliPasteUnavailable" })
-				break
-			}
-
-			const PASTE_START = "\x1b[200~"
-			const PASTE_END = "\x1b[201~"
-			await getTerminalManager().write(PASTE_START + clipboardText + PASTE_END)
-			break
-		}
-		case "CostrictCliResize":
-			if (message.cols && message.rows) {
-				await getTerminalManager().resize(message.cols, message.rows)
-			}
-			break
-		case "CostrictCliStop":
-			await getTerminalManager().stop(message?.values?.signal)
-			break
-		case "CostrictCliRestart": {
-			await getTerminalManager().stop()
-			await provider.postMessageToWebview({ type: "CostrictCliRestart" })
-			break
-		}
 		case "webviewDidLaunch": {
 			try {
 				// Load custom modes first

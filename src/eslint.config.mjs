@@ -30,6 +30,6 @@ export default [
 		},
 	},
 	{
-		ignores: ["webview-ui", "out"],
+		ignores: ["webview-ui", "out", "assets/cs-cloud-ui"],
 	},
 ]

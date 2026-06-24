@@ -13,25 +13,28 @@ import { telemetryClient } from "./utils/TelemetryClient"
 import { initializeSourceMaps, exposeSourceMapsForDebugging } from "./utils/sourceMapInitializer"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView, { ChatViewRef } from "./components/chat/ChatView"
-import HistoryView from "./components/history/HistoryView"
-import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
-import CodeReviewPage from "./components/code-review"
-import CodeReviewHistoryView from "./components/code-review/CodeReviewHistoryView"
-import CostrictCliView from "./components/costrict-cli/CostrictCliView"
 import LoadingView from "./components/LoadingView"
-import WelcomeView from "./components/welcome/WelcomeViewProvider"
 import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 import { CheckpointRestoreDialog } from "./components/chat/CheckpointRestoreDialog"
 import { DeleteMessageDialog, EditMessageDialog } from "./components/chat/MessageModificationConfirmationDialog"
 import ErrorBoundary from "./components/ErrorBoundary"
+import type { SettingsViewRef } from "./components/settings/SettingsView"
+
+const LazyHistoryView = React.lazy(() => import("./components/history/HistoryView"))
+const LazySettingsView = React.lazy(() => import("./components/settings/SettingsView"))
+const LazyCodeReviewPage = React.lazy(() => import("./components/code-review"))
+const LazyCodeReviewHistoryView = React.lazy(() => import("./components/code-review/CodeReviewHistoryView"))
+const LazyWelcomeView = React.lazy(() => import("./components/welcome/WelcomeViewProvider"))
+const LazyCostrictAccountView = React.lazy(() =>
+	import("./components/cloud/CostrictAccountView").then((m) => ({ default: m.CostrictAccountView })),
+)
 // import { WorktreesView } from "./components/worktrees"
 // import { CloudView } from "./components/cloud/CloudView"
 import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonInteractiveClick"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY, StandardTooltip } from "./components/ui/standard-tooltip"
-import { CostrictAccountView } from "./components/cloud/CostrictAccountView"
-import { TabContent, TabList, TabTrigger } from "./components/common/Tab"
 import { cn } from "./lib/utils"
+import { TabContent, TabList, TabTrigger } from "./components/common/Tab"
 import { ReauthConfirmationDialog } from "./components/chat/ReauthConfirmationDialog"
 import { useTranslation } from "react-i18next"
 import { EXPERIMENT_IDS } from "@roo/experiments"
@@ -40,7 +43,6 @@ type Tab =
 	| "settings"
 	| "history"
 	| "chat"
-	| "cs-cli"
 	| "marketplace"
 	| "cloud"
 	| "costrict-account"
@@ -108,8 +110,8 @@ const App = () => {
 		hasClosedCodeReviewWelcomeTips,
 		reviewTask,
 		setReviewTask,
-		didHydrateCliState,
-		setDidHydrateSClitate,
+		// didHydrateCliState,
+		// setDidHydrateSClitate,
 	} = useExtensionState()
 	const { t } = useTranslation()
 
@@ -118,7 +120,7 @@ const App = () => {
 
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
-	const isChatTab = useMemo(() => ["chat", "codeReview", "cs-cli"].includes(tab), [tab])
+	const isChatTab = useMemo(() => ["chat", "codeReview"].includes(tab), [tab])
 
 	const [humanRelayDialogState, setHumanRelayDialogState] = useState<HumanRelayDialogState>({
 		isOpen: false,
@@ -161,9 +163,6 @@ const App = () => {
 
 			setCurrentSection(undefined)
 			// setCurrentMarketplaceTab(undefined)
-			if (newTab === "cs-cli" && !didHydrateCliState) {
-				setDidHydrateSClitate(true)
-			}
 			// Notify backend of active tab change so it can hibernate/wake non-CLI features
 			if (settingsRef.current?.checkUnsaveChanges) {
 				settingsRef.current.checkUnsaveChanges(() => {
@@ -175,7 +174,7 @@ const App = () => {
 				vscode.postMessage({ type: "switchTab", tab: newTab })
 			}
 		},
-		[didHydrateCliState, mdmCompliant, setDidHydrateSClitate],
+		[mdmCompliant],
 	)
 
 	const toggleCodeReviewTips = useCallback(() => {
@@ -194,15 +193,13 @@ const App = () => {
 			const message: ExtensionMessage = e.data
 
 			// When CLI tab is active, route invoke messages to the terminal via bracketed paste
-			if (message.type === "invoke" && tab === "cs-cli") {
-				const text = message.text ?? ""
-				if (text) {
-					const PASTE_START = "\x1b[200~"
-					const PASTE_END = "\x1b[201~"
-					vscode.postMessage({ type: "CostrictCliInput", data: PASTE_START + text + PASTE_END })
-				}
-				return
-			}
+			// 	const text = message.text ?? ""
+			// 	if (text) {
+			// 		const PASTE_START = "\x1b[200~"
+			// 		const PASTE_END = "\x1b[201~"
+			// 	}
+			// 	return
+			// }
 
 			if (message.type === "action" && message.action) {
 				// Handle switchTab action with tab parameter
@@ -210,9 +207,8 @@ const App = () => {
 					const targetTab = message.tab as Tab
 					// Use setTab directly instead of switchTab to avoid re-posting
 					// to the backend (which would echo back and cause an infinite loop).
-					if (targetTab === "cs-cli" && !didHydrateCliState) {
-						setDidHydrateSClitate(true)
-					}
+					// 	setDidHydrateSClitate(true)
+					// }
 					setTab(targetTab)
 					// Extract targetSection from values if provided
 					const targetSection = message.values?.section as string | undefined
@@ -266,7 +262,7 @@ const App = () => {
 				chatViewRef.current?.acceptInput()
 			}
 		},
-		[switchTab, didHydrateCliState, setDidHydrateSClitate, tab],
+		[switchTab],
 	)
 
 	useEvent("message", onMessage)
@@ -331,19 +327,12 @@ const App = () => {
 		]
 
 		if (apiConfiguration?.apiProvider === "costrict") {
-			baseTabs.push(
-				{
-					label: t("common:costrictCli.tabs.codeReview"),
-					value: "codeReview",
-					icon: "codicon-code-review",
-					// icon: "codicon-search",
-				},
-				{
-					label: t("common:costrictCli.tabs.cli"),
-					value: "cs-cli",
-					icon: "codicon-terminal",
-				},
-			)
+			baseTabs.push({
+				label: t("common:costrictCli.tabs.codeReview"),
+				value: "codeReview",
+				icon: "codicon-code-review",
+				// icon: "codicon-search",
+			})
 		}
 
 		return baseTabs
@@ -380,12 +369,20 @@ const App = () => {
 	// Do not conditionally load ChatView, it's expensive and there's state we
 	// don't want to lose (user input, disableInput, askResponse promise, etc.)
 	return showWelcome ? (
-		<WelcomeView />
+		<React.Suspense fallback={<LoadingView />}>
+			<LazyWelcomeView />
+		</React.Suspense>
 	) : (
 		<>
-			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
+			{tab === "history" && (
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyHistoryView onDone={() => switchTab("chat")} />
+				</React.Suspense>
+			)}
 			{tab === "settings" && (
-				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
+				<React.Suspense fallback={<LoadingView />}>
+					<LazySettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
+				</React.Suspense>
 			)}
 			{/* {tab === "marketplace" && (
 				<MarketplaceView
@@ -403,10 +400,15 @@ const App = () => {
 				/>
 			)} */}
 			{tab === "costrict-account" && (
-				<CostrictAccountView apiConfiguration={apiConfiguration} onDone={() => switchTab("chat")} />
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyCostrictAccountView apiConfiguration={apiConfiguration} onDone={() => switchTab("chat")} />
+				</React.Suspense>
 			)}
-			{/* {tab === "worktrees" && <WorktreesView onDone={() => switchTab("chat")} />} */}
-			{tab === "codeReviewHistory" && <CodeReviewHistoryView onDone={() => switchTab("codeReview")} />}
+			{tab === "codeReviewHistory" && (
+				<React.Suspense fallback={<LoadingView />}>
+					<LazyCodeReviewHistoryView onDone={() => switchTab("codeReview")} />
+				</React.Suspense>
+			)}
 			<div className={`${isChatTab ? "fixed inset-0 flex flex-col" : "hidden"}`}>
 				<div className={`header flex items-center justify-between px-5 ${isChatTab ? "" : "hidden"}`}>
 					<TabList value={tab} onValueChange={(val) => switchTab(val as Tab)} className="header-left h-7">
@@ -448,6 +450,11 @@ const App = () => {
 									className="codicon codicon-git-branch-create cursor-pointer p-0.5"
 									onClick={() => switchTab("worktrees")}></i>
 							</StandardTooltip> */}
+							<StandardTooltip content="切换到 Cloud UI">
+								<i
+									className="codicon codicon-cloud cursor-pointer p-0.5"
+									onClick={() => vscode.postMessage({ type: "switchUiMode" })}></i>
+							</StandardTooltip>
 							<StandardTooltip content={t("history:history")}>
 								<i
 									className="codicon codicon-history cursor-pointer p-0.5"
@@ -483,28 +490,29 @@ const App = () => {
 						</div>
 					)}
 				</div>
-				<TabContent className={tab === "cs-cli" ? "p-0 overflow-hidden" : tab === "codeReview" ? "p-0" : ""}>
-					{tab !== "cs-cli" && (
-						<ChatView
-							ref={chatViewRef}
-							isHidden={tab !== "chat"}
-							showAnnouncement={showAnnouncement}
-							hideAnnouncement={() => setShowAnnouncement(false)}
-						/>
-					)}
+				<TabContent className={tab === "codeReview" ? "p-0" : ""}>
+					<ChatView
+						ref={chatViewRef}
+						isHidden={tab !== "chat"}
+						showAnnouncement={showAnnouncement}
+						hideAnnouncement={() => setShowAnnouncement(false)}
+					/>
 					{tab === "codeReview" && (
-						<CodeReviewPage
-							isHidden={tab !== "codeReview"}
-							onIssueClick={onIssueClick}
-							onTaskCancel={onTaskCancel}
-							onNavigateToWelcome={(fn) => {
-								codeReviewNavigateRef.current = fn
-							}}
-						/>
+						<React.Suspense fallback={<LoadingView />}>
+							<LazyCodeReviewPage
+								isHidden={tab !== "codeReview"}
+								onIssueClick={onIssueClick}
+								onTaskCancel={onTaskCancel}
+								onNavigateToWelcome={(fn: () => void) => {
+									codeReviewNavigateRef.current = fn
+								}}
+							/>
+						</React.Suspense>
 					)}
-					{apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
-						<CostrictCliView isHidden={tab !== "cs-cli"} />
-					)}
+					{/* {apiConfiguration.apiProvider === "costrict" && didHydrateCliState && (
+						<React.Suspense fallback={<LoadingView />}>
+						</React.Suspense>
+					)} */}
 				</TabContent>
 			</div>
 			<MemoizedHumanRelayDialog
