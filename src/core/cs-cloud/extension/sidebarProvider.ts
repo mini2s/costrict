@@ -227,6 +227,18 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 						})
 					}
 				}
+				if (message.type === "switchToClassicUiMode") {
+					try {
+						await vscode.workspace
+							.getConfiguration("costrict")
+							.update("uiMode", "classic", vscode.ConfigurationTarget.Global)
+						await vscode.commands.executeCommand("setContext", "costrict.uiMode", "classic")
+						void vscode.commands.executeCommand("workbench.action.reloadWindow")
+					} catch (err) {
+						const reason = err instanceof Error ? err.message : String(err)
+						this.outputChannel.appendLine(`[AssistantUI] Switch to classic mode failed: ${reason}`)
+					}
+				}
 				if (message.type === "proxyFetchAbort" && message.requestId) {
 					this.proxyFetchControllers.get(message.requestId)?.abort()
 					this.proxyFetchControllers.delete(message.requestId)
@@ -662,6 +674,27 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
     .cs-btn-primary:active:not(:disabled) {
       transform: translateY(0);
     }
+    .cs-classic-link {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      font-size: 12px;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      display: inline;
+      text-decoration: none;
+      line-height: 1.6;
+    }
+    .cs-classic-link:hover {
+      text-decoration: underline;
+    }
+    .cs-classic-link:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      text-decoration: none;
+    }
     .cs-auto-retry {
       font-size: 12px;
       color: var(--vscode-descriptionForeground);
@@ -690,6 +723,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				: ""
 		}
       <p class="cs-auto-retry" id="auto-retry-text"></p>
+      <button id="switch-to-classic-btn" class="cs-classic-link" onclick="handleSwitchToClassic()">
+        退回到 Classic 模式 →
+      </button>
     </div>
   </div>
   <script>
@@ -743,6 +779,16 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
         btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在启动…';
       }
       vscode.postMessage({ type: "restartCsCloud" });
+    }
+
+    function handleSwitchToClassic() {
+      stopCountdown();
+      const btn = document.getElementById("switch-to-classic-btn");
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "切换中…";
+      }
+      vscode.postMessage({ type: "switchToClassicUiMode" });
     }
 
     window.addEventListener("message", (e) => {
