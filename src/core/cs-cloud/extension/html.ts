@@ -104,6 +104,10 @@ export function getFormStatePersistenceScript(): string {
   var vscode = window.__VSCODE_API__;
   if (!vscode) return;
 
+  function isReactControlled(el) {
+    return !!el && '_valueTracker' in el;
+  }
+
   function collectFormState() {
     var state = {};
     try {
@@ -111,6 +115,7 @@ export function getFormStatePersistenceScript(): string {
       inputs.forEach(function(el, i) {
         var key = el.id || el.name || el.getAttribute('data-state-key') || ('__anon_' + i);
         try {
+          if (isReactControlled(el)) return;
           if (el.getAttribute('contenteditable') === 'true') {
             state[key] = el.innerText || el.textContent || '';
           } else if (el.type === 'checkbox' || el.type === 'radio') {
@@ -140,6 +145,8 @@ export function getFormStatePersistenceScript(): string {
       inputs.forEach(function(el, i) {
         var key = el.id || el.name || el.getAttribute('data-state-key') || ('__anon_' + i);
         try {
+          if (isReactControlled(el)) return;
+          if (document.activeElement === el) return;
           if (saved[key] !== undefined) {
             if (el.getAttribute('contenteditable') === 'true') {
               if (el.innerText !== saved[key]) {
