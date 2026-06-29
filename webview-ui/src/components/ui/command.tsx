@@ -60,10 +60,9 @@ const CommandList = React.forwardRef<
 >(({ className, onWheel, ...props }, ref) => {
 	const handleWheel = React.useCallback(
 		(e: React.WheelEvent<HTMLDivElement>) => {
-			// Manually handle scroll to work around VSCode webview scroll issues
-			const target = e.currentTarget
-			e.preventDefault()
-			target.scrollTop += e.deltaY
+			// Prevent wheel event from propagating to parent scrollable elements.
+			// CSS overscroll-behavior: contain already handles scroll boundary chaining,
+			// but stopPropagation ensures the event doesn't reach parent listeners.
 			e.stopPropagation()
 			onWheel?.(e)
 		},

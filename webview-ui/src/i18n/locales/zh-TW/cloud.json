@@ -1,5 +1,14 @@
 {
 	"title": "Cloud",
+	"switchDialog": {
+		"title": "切換到 Cloud UI",
+		"description": "Cloud 模式依賴 csc 4.2.4+，請確保已安裝並設定好執行環境。",
+		"steps": "使用步驟：",
+		"stepInstall": "安裝 csc：npm install -g @costrict/csc",
+		"stepStart": "啟動 Cloud 服務：csc cloud start",
+		"cancel": "取消",
+		"confirm": "確認切換"
+	},
 	"profilePicture": "個人圖片",
 	"logOut": "登出",
 	"testApiAuthentication": "測試 API 認證",

@@ -33,6 +33,17 @@ const LazyCostrictAccountView = React.lazy(() =>
 import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonInteractiveClick"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY, StandardTooltip } from "./components/ui/standard-tooltip"
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "./components/ui/alert-dialog"
+import { Trans } from "react-i18next"
 import { cn } from "./lib/utils"
 import { TabContent, TabList, TabTrigger } from "./components/common/Tab"
 import { ReauthConfirmationDialog } from "./components/chat/ReauthConfirmationDialog"
@@ -146,6 +157,8 @@ const App = () => {
 		hasCheckpoint: false,
 		images: [],
 	})
+
+	const [cloudSwitchDialogOpen, setCloudSwitchDialogOpen] = useState(false)
 
 	const settingsRef = useRef<SettingsViewRef>(null)
 	const chatViewRef = useRef<ChatViewRef>(null)
@@ -450,10 +463,10 @@ const App = () => {
 									className="codicon codicon-git-branch-create cursor-pointer p-0.5"
 									onClick={() => switchTab("worktrees")}></i>
 							</StandardTooltip> */}
-							<StandardTooltip content="切换到 Cloud UI">
+							<StandardTooltip content={t("cloud:switchDialog.title")}>
 								<i
 									className="codicon codicon-cloud cursor-pointer p-0.5"
-									onClick={() => vscode.postMessage({ type: "switchUiMode" })}></i>
+									onClick={() => setCloudSwitchDialogOpen(true)}></i>
 							</StandardTooltip>
 							<StandardTooltip content={t("history:history")}>
 								<i
@@ -590,6 +603,37 @@ const App = () => {
 					setReauthConfirmationDialogState((prev) => ({ ...prev, isOpen: false }))
 				}}
 			/>
+			<AlertDialog open={cloudSwitchDialogOpen} onOpenChange={setCloudSwitchDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							<i className="codicon codicon-cloud"></i>
+							{t("cloud:switchDialog.title")}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							<div className="flex flex-col gap-3">
+								<Trans
+									i18nKey="cloud:switchDialog.description"
+									components={{ bold: <strong /> }}
+								/>
+								<div className="bg-vscode-textBlockQuote-background p-3 rounded-sm text-sm">
+									<p className="font-medium mb-1">{t("cloud:switchDialog.steps")}</p>
+									<ol className="list-decimal list-inside space-y-1">
+										<li>{t("cloud:switchDialog.stepInstall")}</li>
+										<li>{t("cloud:switchDialog.stepStart")}</li>
+									</ol>
+								</div>
+							</div>
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>{t("cloud:switchDialog.cancel")}</AlertDialogCancel>
+						<AlertDialogAction onClick={() => vscode.postMessage({ type: "switchUiMode" })}>
+							{t("cloud:switchDialog.confirm")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	)
 }
