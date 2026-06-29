@@ -1,5 +1,14 @@
 {
 	"title": "Cloud",
+	"switchDialog": {
+		"title": "Switch to Cloud UI",
+		"description": "Cloud mode requires csc 4.2.4+. Please make sure it is installed and configured.",
+		"steps": "Steps:",
+		"stepInstall": "Install csc: npm install -g @costrict/csc",
+		"stepStart": "Start Cloud service: csc cloud start",
+		"cancel": "Cancel",
+		"confirm": "Confirm Switch"
+	},
 	"profilePicture": "Profile picture",
 	"logOut": "Log out",
 	"testApiAuthentication": "Test API Authentication",
