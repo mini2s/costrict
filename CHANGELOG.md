@@ -2,6 +2,14 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [3.0.11]
+
+- Enhance form state persistence by excluding React controlled elements (#1325)
+- Add cloud UI switch confirmation dialog and fix scroll event propagation (#1324)
+- Add fallback to classic mode on crash screen for assistant UI (#1323)
+- Add support for GPT-5.5 model (#1322)
+- Fix known issues
+
 ## [3.0.10]
 
 [CoStrict Cloud](https://zgsm.sangfor.com/cloud/workspace) is an AI-powered cloud programming workspace that lets you remotely connect to your personal devices (local or private servers) from any browser. It features conversational AI programming, project file management, multi-session persistence, and remote terminal collaboration — enabling seamless browser-based remote development, real-time AI coding and debugging, and cross-device project continuity.
