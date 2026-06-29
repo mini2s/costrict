@@ -427,7 +427,7 @@ export const getCommandsMap = ({
 			const chatMessage = textPaths.length > 0 ? textPaths.join(" ") + " " : ""
 			const payload: AssistantUIContextMessage = {
 				type: "assistantUIContext",
-				text: "@" + chatMessage,
+				text: chatMessage,
 				focus: true,
 			}
 			if (imageSources.length > 0) payload.images = imageSources
