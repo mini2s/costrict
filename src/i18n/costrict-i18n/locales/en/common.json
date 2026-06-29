@@ -223,5 +223,44 @@
 		"connectionFailed": "IPC connection failed, unable to connect to local server",
 		"reloadWindow": "Reload Window",
 		"manualRetry": "Manual Retry"
+	},
+	"csCloud": {
+		"loading": {
+			"startingCloud": "Starting CoStrict Cloud...",
+			"initializing": "Initializing interface...",
+			"loadingCloud": "Loading CoStrict Cloud..."
+		},
+		"progress": {
+			"startingCloud": "Starting CoStrict Cloud"
+		},
+		"disabled": {
+			"message": "CoStrict Assistant UI is disabled. Enable it via costrict.assistantUI.enabled."
+		},
+		"error": {
+			"title": "Service startup encountered a problem",
+			"descRetry": "The backend service failed to start. Please wait a moment, we will automatically try to recover.",
+			"descNoCsc": "csc was not detected. Please install and start CoStrict Cloud as prompted.",
+			"startupFailed": "cs-cloud failed to start",
+			"cscNotInstalled": "csc is not installed",
+			"restart": "Restart",
+			"switchToClassic": "Switch to Classic mode →",
+			"autoRetryCountdown": "Auto retry in {{count}}s…",
+			"starting": "Starting…",
+			"switching": "Switching…"
+		},
+		"crashed": {
+			"title": "Service temporarily unavailable",
+			"desc": "The backend service has disconnected. Attempting to automatically restore the connection.",
+			"reconnect": "Reconnect",
+			"switchToClassic": "Switch to Classic mode →",
+			"autoRetryCountdown": "Auto retry in {{count}}s…",
+			"connecting": "Connecting…",
+			"switching": "Switching…"
+		},
+		"git": {
+			"checkoutSuccess": "Checked out branch {{branch}}",
+			"checkoutFailed": "Failed to checkout branch: {{message}}"
+		},
+		"diagnostics": "Assistant UI diagnostics: checking cs-cloud..."
 	}
 }

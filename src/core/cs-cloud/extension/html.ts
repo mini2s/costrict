@@ -2,6 +2,7 @@ import * as fs from "fs"
 import * as path from "path"
 import * as vscode from "vscode"
 import { getAssistantUIConfig } from "./config"
+import { t } from "../../../i18n"
 
 export function buildAssistantUIFrameUrl(
 	webUrl: string,
@@ -92,12 +93,7 @@ export function injectBeforeBodyClose(html: string, content: string) {
 	return html.replace("</body>", `${content}\n</body>`)
 }
 
-/**
- * 生成表单状态持久化脚本。
- * 利用 VS Code 的 acquireVsCodeApi().getState()/setState() API，
- * 在 webview 销毁后重建时自动恢复输入框/文本域等元素的值。
- * 解决侧边栏拖拽移动后 UI 状态丢失的问题。
- */
+/** Persist and restore form state across webview rebuilds. */
 export function getFormStatePersistenceScript(): string {
 	return /* js */ `
 (function(){
@@ -174,7 +170,7 @@ export function getFormStatePersistenceScript(): string {
       if (!saved) return;
       applyState(saved);
 
-      // 使用 MutationObserver 监听 React 动态渲染的新元素
+      // Watch for React-rendered elements
       var attempts = 0;
       var maxAttempts = 10;
       var observer = new MutationObserver(function() {
@@ -192,18 +188,18 @@ export function getFormStatePersistenceScript(): string {
     } catch(e) {}
   }
 
-  // 每 3 秒自动保存
+  // Auto-save every 3s
   setInterval(saveState, 3000);
 
-  // 页面隐藏时保存
+  // Save on hide
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') saveState();
   });
 
-  // 页面卸载前保存
+  // Save before unload
   window.addEventListener('beforeunload', saveState);
 
-  // DOM 就绪后恢复状态
+  // Restore on ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
       setTimeout(restoreState, 200);
@@ -223,7 +219,7 @@ function getNonce() {
 	return text
 }
 
-/** 转义 HTML 特殊字符，防止 XSS */
+/** Escape HTML special characters. */
 export function escapeHtml(value: string): string {
 	return value
 		.replace(/&/g, "&amp;")
@@ -361,7 +357,7 @@ function getLoadingStyles() {
   `
 }
 
-function getLoadingMarkup(logoSvg: string, loadingText = "正在初始化界面...") {
+function getLoadingMarkup(logoSvg: string, loadingText = t("common:csCloud.loading.initializing")) {
 	return /* html */ `<div id="cloud-ui-loading" role="status" aria-live="polite">
     <div class="cloud-ui-loading-center">
       <div class="cloud-ui-loading-card">
@@ -380,12 +376,17 @@ function getLoadingMarkup(logoSvg: string, loadingText = "正在初始化界面.
   </div>`
 }
 
-/**
- * 崩溃错误页 HTML。
- * 包含「重试」按钮，通过 postMessage 与 SidebarProvider 交互。
- * 若用户未手动点击重试，5 秒后自动触发重试。
- */
+/** Crashed error page with auto-retry. */
 export function getCrashedHtml(reason?: string): string {
+	const i18n = {
+		title: t("common:csCloud.crashed.title"),
+		desc: t("common:csCloud.crashed.desc"),
+		reconnect: t("common:csCloud.crashed.reconnect"),
+		switchToClassic: t("common:csCloud.crashed.switchToClassic"),
+		autoRetryCountdown: t("common:csCloud.crashed.autoRetryCountdown", { count: "__COUNT__" }),
+		connecting: t("common:csCloud.crashed.connecting"),
+		switching: t("common:csCloud.crashed.switching"),
+	}
 	return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -547,21 +548,22 @@ export function getCrashedHtml(reason?: string): string {
       </svg>
     </div>
     <div class="cs-brand">CoStrict Cloud</div>
-    <div class="cs-title">服务暂时不可用</div>
-    <div class="cs-desc">后台服务已断开，正在尝试自动恢复连接。</div>
+    <div class="cs-title">${escapeHtml(i18n.title)}</div>
+    <div class="cs-desc">${escapeHtml(i18n.desc)}</div>
     ${reason ? `<pre class="cs-detail">${escapeHtml(reason)}</pre>` : ""}
     <div class="cs-actions">
       <button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
-        重新连接
+        ${escapeHtml(i18n.reconnect)}
       </button>
       <p class="cs-auto-retry" id="auto-retry-text"></p>
       <button id="switch-to-classic-btn" class="cs-classic-link" onclick="handleSwitchToClassic()">
-        退回到 Classic 模式 →
+        ${escapeHtml(i18n.switchToClassic)}
       </button>
     </div>
   </div>
   <script>
+    const I18N = ${JSON.stringify(i18n)};
     const vscode = acquireVsCodeApi();
     const AUTO_RETRY_SECONDS = 5;
     let countdown = AUTO_RETRY_SECONDS;
@@ -571,7 +573,7 @@ export function getCrashedHtml(reason?: string): string {
     function updateCountdownText() {
       const el = document.getElementById("auto-retry-text");
       if (el) {
-        el.textContent = countdown > 0 ? countdown + " 秒后自动重试…" : "";
+        el.textContent = countdown > 0 ? I18N.autoRetryCountdown.replace("__COUNT__", countdown) : "";
       }
     }
 
@@ -606,7 +608,7 @@ export function getCrashedHtml(reason?: string): string {
       stopCountdown();
       const btn = document.getElementById("restart-btn");
       btn.disabled = true;
-      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在连接…';
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ' + I18N.connecting;
       vscode.postMessage({ type: "restartCsCloud" });
     }
 
@@ -614,7 +616,7 @@ export function getCrashedHtml(reason?: string): string {
       stopCountdown();
       const btn = document.getElementById("switch-to-classic-btn");
       btn.disabled = true;
-      btn.textContent = "切换中…";
+      btn.textContent = I18N.switching;
       vscode.postMessage({ type: "switchToClassicUiMode" });
     }
 
@@ -622,7 +624,7 @@ export function getCrashedHtml(reason?: string): string {
       if (e.data?.type === "restartFailed") {
         const btn = document.getElementById("restart-btn");
         btn.disabled = false;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> 重新连接';
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> ' + I18N.reconnect;
         const detail = document.querySelector(".cs-detail");
         if (detail) {
           detail.textContent = e.data.reason;
@@ -987,7 +989,7 @@ export function getAssistantUIStaticHtml(
 	// Keep the exported Next.js body unchanged before hydration. Injecting extra
 	// body nodes here can trigger React hydration error #418 in JCEF.
 
-	// 注入 CSS 加载检测脚本，所有样式表就绪后自动隐藏 loading；5s 兜底超时
+	// Hide loading when stylesheets are ready (5s timeout)
 	const hideLoadingScript = `<script nonce="${nonce}">
 (function(){
   window.__ASSISTANT_UI_HIDE_LOADING__ = function () {
@@ -1024,7 +1026,7 @@ export function getAssistantUIStaticHtml(
 })();
 </script>`
 
-	// 注入表单状态持久化脚本，确保侧边栏拖拽后输入框内容不丢失
+	// Inject form state persistence
 	const stateScript = `<script nonce="${nonce}">${getFormStatePersistenceScript()}</script>`
 	html = injectBeforeBodyClose(html, hideLoadingScript + stateScript)
 	return html
@@ -1089,8 +1091,8 @@ export function getAssistantUIIframeHtml(
   </style>
 </head>
 <body>
-  <div id="cloud-ui-diagnostics">Assistant UI diagnostics: checking cs-cloud...</div>
-  ${getLoadingMarkup(getAssistantUILogoSvg(context), "正在加载 CoStrict Cloud...")}
+  <div id="cloud-ui-diagnostics">${escapeHtml(t("common:csCloud.diagnostics"))}</div>
+  ${getLoadingMarkup(getAssistantUILogoSvg(context), t("common:csCloud.loading.loadingCloud"))}
   <script nonce="${nonce}">
     window.__CS_CLOUD_BASE_URL__ = ${JSON.stringify(csCloudBaseUrl)};
     window.__CS_CLOUD_WEB_URL__ = ${JSON.stringify(costrictWebUrl)};
@@ -1138,7 +1140,7 @@ export function getAssistantUIIframeHtml(
     window.addEventListener("message", function (event) {
       const frame = document.getElementById("cloud-frame");
 
-      // 来自 iframe 的消息：转发给 VS Code
+      // Forward iframe messages to VS Code
       if (event.source === frame?.contentWindow) {
         if (event.data?.type === "ASSISTANT_UI_READY") {
           cloudFrameReady = true;
@@ -1191,7 +1193,7 @@ export function getAssistantUIIframeHtml(
         return;
       }
 
-      // 来自 VS Code 的消息：转发给 iframe
+      // Forward VS Code messages to iframe
       if (event.data?.type === "assistantUIContext") {
         if (cloudFrameReady && frame?.contentWindow) {
           frame.contentWindow.postMessage(event.data, frameOrigin);

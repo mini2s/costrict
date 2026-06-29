@@ -223,5 +223,44 @@
 		"connectionFailed": "IPC 连接失败，无法连接到本地服务器",
 		"reloadWindow": "重新加载窗口",
 		"manualRetry": "手动重试"
+	},
+	"csCloud": {
+		"loading": {
+			"startingCloud": "正在启动 CoStrict Cloud...",
+			"initializing": "正在初始化界面...",
+			"loadingCloud": "正在加载 CoStrict Cloud..."
+		},
+		"progress": {
+			"startingCloud": "正在启动 CoStrict Cloud"
+		},
+		"disabled": {
+			"message": "CoStrict Assistant UI 已禁用。请通过 costrict.assistantUI.enabled 启用。"
+		},
+		"error": {
+			"title": "服务启动遇到问题",
+			"descRetry": "后台服务未能正常启动，请稍等片刻，我们会自动尝试恢复。",
+			"descNoCsc": "未检测到 csc，请先按提示安装并启动 CoStrict Cloud。",
+			"startupFailed": "cs-cloud 启动失败",
+			"cscNotInstalled": "未安装 csc",
+			"restart": "重新启动",
+			"switchToClassic": "切换到 Classic 模式 →",
+			"autoRetryCountdown": "{{count}} 秒后自动重试…",
+			"starting": "正在启动…",
+			"switching": "切换中…"
+		},
+		"crashed": {
+			"title": "服务暂时不可用",
+			"desc": "后台服务已断开，正在尝试自动恢复连接。",
+			"reconnect": "重新连接",
+			"switchToClassic": "切换到 Classic 模式 →",
+			"autoRetryCountdown": "{{count}} 秒后自动重试…",
+			"connecting": "正在连接…",
+			"switching": "切换中…"
+		},
+		"git": {
+			"checkoutSuccess": "已切换到分支 {{branch}}",
+			"checkoutFailed": "切换分支失败：{{message}}"
+		},
+		"diagnostics": "Assistant UI 诊断：正在检查 cs-cloud..."
 	}
 }

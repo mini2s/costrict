@@ -18,6 +18,7 @@ import type { AssistantUIContextMessage } from "./types"
 import { setActiveCloudProvider, onCloudUiReady, setCloudUnavailable } from "./contextBridge"
 import { Package } from "../../../shared/package"
 import { readCostrictAccessToken } from "../../costrict/runtime-config"
+import { t } from "../../../i18n"
 
 export function getAssistantUIWorkspaceDirectory() {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
@@ -49,14 +50,13 @@ async function getGitBranches(cwd: string): Promise<{ branches: string[]; curren
 
 	return { branches, current }
 }
-
 async function gitCheckout(cwd: string, branch: string): Promise<{ success: boolean; message: string }> {
 	try {
 		await execFileAsync("git", ["checkout", branch], { cwd })
-		return { success: true, message: `Checked out branch ${branch}` }
+		return { success: true, message: t("common:csCloud.git.checkoutSuccess", { branch }) }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
-		return { success: false, message: `Failed to checkout branch: ${message}` }
+		return { success: false, message: t("common:csCloud.git.checkoutFailed", { message }) }
 	}
 }
 
@@ -71,11 +71,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	private readonly csCloudService: CsCloudService
 	private disposables: vscode.Disposable[] = []
 
-	/**
-	 * 缓存首次成功加载后的 HTML，用于侧边栏拖拽移动后快速恢复。
-	 * 当 VS Code 拖拽 Activity Bar 到另一侧边栏时，WebviewView 会被销毁后重建，
-	 * resolveWebviewView 会被再次调用。通过缓存避免重新调用 ensureStarted 和重新生成 HTML。
-	 */
+	/** Cached HTML for fast restore after sidebar move. */
 	private cachedHtml: string | undefined
 	private readonly proxyFetchControllers = new Map<string, AbortController>()
 
@@ -87,10 +83,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		this.csCloudService = csCloudService
 	}
 
-	/**
-	 * 向 Cloud UI webview 发送 context 消息。
-	 * 不直接暴露 private view 成员。
-	 */
+	/** Post message to Cloud UI webview. */
 	public postContextMessage(message: AssistantUIContextMessage): Thenable<boolean> | undefined {
 		return this.view?.webview.postMessage(message)
 	}
@@ -107,7 +100,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	async resolveWebviewView(webviewView: vscode.WebviewView) {
 		this.view = webviewView
 
-		// 注册为 active Cloud provider，获取当前 generation
+		// Register as active cloud provider
 		const cloudGen = setActiveCloudProvider(this)
 
 		webviewView.webview.options = {
@@ -115,7 +108,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			localResourceRoots: [this.context.extensionUri],
 		}
 
-		// Handle dispose — 必须在所有 early return 之前注册
+		// Handle dispose (before any early return)
 		webviewView.onDidDispose(
 			() => {
 				this.view = undefined
@@ -126,7 +119,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			this.disposables,
 		)
 
-		// 1. 先注册事件监听（必须在分支渲染之前）+ 生命周期管理
+		// Register event listeners before branching
 		const crashedHandler = ({ reason }: { reason: string }) => {
 			if (this.view) {
 				this.view.webview.html = getCrashedHtml(reason)
@@ -134,7 +127,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		}
 		this.csCloudService.on("crashed", crashedHandler)
 
-		// webview dispose 时移除监听，避免重复绑定和内存泄漏
+		// Remove listener on dispose
 		webviewView.onDidDispose(
 			() => {
 				this.csCloudService.off("crashed", crashedHandler)
@@ -204,7 +197,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					vscode.commands.executeCommand(message.command)
 				}
 				if (message.type === "reloadAssistantUI") {
-					// 用户主动触发 reload 时清除缓存，强制完整重新加载
+					// Clear cache on manual reload
 					this.cachedHtml = undefined
 					await this.loadContent(webviewView)
 				}
@@ -214,11 +207,9 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					}
 					try {
 						await this.csCloudService.restart()
-						// 成功：重新加载 Cloud UI
 						this.cachedHtml = undefined
 						await this.loadContent(this.view!)
 					} catch (err) {
-						// 失败：通知错误页恢复按钮
 						const reason = err instanceof Error ? err.message : String(err)
 						this.outputChannel.appendLine(`[AssistantUI] Restart cs-cloud failed: ${reason}`)
 						this.view?.webview.postMessage({
@@ -383,18 +374,18 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			webviewView.webview.html = this.getDisabledHtml()
 			return
 		}
-		// 如果有缓存的 HTML（侧边栏拖拽移动后重建 webview），直接复用
+		// Reuse cached HTML if available
 		if (this.cachedHtml) {
 			webviewView.webview.html = this.cachedHtml
 			return
 		}
-		// 2. 根据持久化状态渲染
+		// Render by persisted state
 		switch (this.csCloudService.state) {
 			case "error":
 				webviewView.webview.html = this.getErrorHtml(
 					this.csCloudService.startupFailureReason ??
 						this.csCloudService.lastCrashReason ??
-						"cs-cloud 启动失败",
+						t("common:csCloud.error.startupFailed"),
 				)
 				return
 			case "running":
@@ -402,7 +393,10 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				return
 			case "loading":
 			case "idle":
-				webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
+				webviewView.webview.html = getAssistantUILoadingHtml(
+					this.context,
+					t("common:csCloud.loading.startingCloud"),
+				)
 				await this.loadContent(webviewView)
 				return
 		}
@@ -412,27 +406,27 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); }
-  </style>
+	 <meta charset="UTF-8">
+	 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	 <style>
+	   body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); }
+	 </style>
 </head>
 <body>
-  <p>CoStrict Assistant UI is disabled. Enable it via <code>costrict.assistantUI.enabled</code>.</p>
+	 <p>${escapeHtml(t("common:csCloud.disabled.message"))}</p>
 </body>
 </html>`
 	}
 
 	private async loadContent(webviewView: vscode.WebviewView) {
-		webviewView.webview.html = getAssistantUILoadingHtml(this.context, "正在启动 CoStrict Cloud...")
+		webviewView.webview.html = getAssistantUILoadingHtml(this.context, t("common:csCloud.loading.startingCloud"))
 
 		try {
 			const workspaceDirectory = getAssistantUIWorkspaceDirectory()
 			const baseUrl = await vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
-					title: "Starting CoStrict Cloud",
+					title: t("common:csCloud.progress.startingCloud"),
 					cancellable: false,
 				},
 				() => this.csCloudService.ensureStarted(),
@@ -500,7 +494,6 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 			const pluginVersion = Package.version
 			const pluginSha = Package.sha
 			const pluginBuildTime = Package.buildTime
-			// 如果 vscode 里面等 accessToken 没有了，被清空了，就去 $HOME/.costrict/share/auth.json 里面找 access_token 字段
 			if (useIframe) {
 				this.outputChannel.appendLine(
 					`[AssistantUISidebarProvider] remoteName (${vscode.env.remoteName}|${vscode.env.appName}) baseUrl: ${baseUrl}, csCloudBaseUrl: ${csCloudBaseUrl}`,
@@ -508,7 +501,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				const html = getAssistantUIIframeHtml(
 					webviewView.webview,
 					this.context,
-					csCloudBaseUrl, // iframe 模式下必须使用浏览器可访问地址，确保远程环境可访问
+					csCloudBaseUrl,
 					config.webUrl,
 					workspaceDirectory,
 					accessToken ?? undefined,
@@ -549,6 +542,16 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 
 	private getErrorHtml(message: string): string {
 		const canRetry = !this.csCloudService.startupFailureIsUninstallCsc
+		const i18n = {
+			title: t("common:csCloud.error.title"),
+			descRetry: t("common:csCloud.error.descRetry"),
+			descNoCsc: t("common:csCloud.error.descNoCsc"),
+			restart: t("common:csCloud.error.restart"),
+			switchToClassic: t("common:csCloud.error.switchToClassic"),
+			autoRetryCountdown: t("common:csCloud.error.autoRetryCountdown", { count: "__COUNT__" }),
+			starting: t("common:csCloud.error.starting"),
+			switching: t("common:csCloud.error.switching"),
+		}
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -710,26 +713,27 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
       </svg>
     </div>
     <div class="cs-brand">CoStrict Cloud</div>
-    <div class="cs-title">服务启动遇到问题</div>
-    <div class="cs-desc">${canRetry ? "后台服务未能正常启动，请稍等片刻，我们会自动尝试恢复。" : "未检测到 csc，请先按提示安装并启动 CoStrict Cloud。"}</div>
+    <div class="cs-title">${escapeHtml(i18n.title)}</div>
+    <div class="cs-desc">${escapeHtml(canRetry ? i18n.descRetry : i18n.descNoCsc)}</div>
     <pre class="cs-detail">${escapeHtml(message)}</pre>
     <div class="cs-actions">
       ${
 			canRetry
 				? `<button id="restart-btn" class="cs-btn cs-btn-primary" onclick="handleRestart()">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg>
-        重新启动
+        ${escapeHtml(i18n.restart)}
       </button>`
 				: ""
 		}
       <p class="cs-auto-retry" id="auto-retry-text"></p>
       <button id="switch-to-classic-btn" class="cs-classic-link" onclick="handleSwitchToClassic()">
-        退回到 Classic 模式 →
+        ${escapeHtml(i18n.switchToClassic)}
       </button>
     </div>
   </div>
   <script>
     const CAN_RETRY = ${canRetry ? "true" : "false"};
+    const I18N = ${JSON.stringify(i18n)};
     const vscode = acquireVsCodeApi();
     const AUTO_RETRY_SECONDS = 10;
     let countdown = AUTO_RETRY_SECONDS;
@@ -739,7 +743,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
     function updateCountdownText() {
       const el = document.getElementById("auto-retry-text");
       if (el) {
-        el.textContent = countdown > 0 ? countdown + " 秒后自动重试…" : "";
+        el.textContent = countdown > 0 ? I18N.autoRetryCountdown.replace("__COUNT__", countdown) : "";
       }
     }
 
@@ -776,7 +780,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
       const btn = document.getElementById("restart-btn");
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在启动…';
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> ' + I18N.starting;
       }
       vscode.postMessage({ type: "restartCsCloud" });
     }
@@ -786,7 +790,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
       const btn = document.getElementById("switch-to-classic-btn");
       if (btn) {
         btn.disabled = true;
-        btn.textContent = "切换中…";
+        btn.textContent = I18N.switching;
       }
       vscode.postMessage({ type: "switchToClassicUiMode" });
     }
@@ -796,7 +800,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
         const btn = document.getElementById("restart-btn");
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> 重新启动';
+          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/></svg> ' + I18N.restart;
         }
         const detail = document.querySelector(".cs-detail");
         if (detail) {
@@ -813,14 +817,10 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 </html>`
 	}
 
-	/**
-	 * 命令面板专用 restart 入口。
-	 * 如果 sidebar 未打开，直接 restart 即可（下次打开时根据状态渲染）。
-	 * 如果 sidebar 已打开，restart 成功后重新加载内容。
-	 */
+	/** Restart entry for command palette. */
 	async restartCsCloud(): Promise<void> {
 		if (this.csCloudService.startupFailureIsUninstallCsc) {
-			throw new Error(this.csCloudService.startupFailureReason ?? "未安装 csc")
+			throw new Error(this.csCloudService.startupFailureReason ?? t("common:csCloud.error.cscNotInstalled"))
 		}
 
 		await this.csCloudService.restart()
