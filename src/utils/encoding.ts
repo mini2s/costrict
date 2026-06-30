@@ -259,7 +259,7 @@ export async function writeFileWithEncodingPreservation(filePath: string, conten
 	let finalEncoding = (await detectFileEncoding(filePath)) as BufferEncoding
 
 	// If original file is UTF-8 or does not exist, write directly
-	if (!finalEncoding || ["utf-8", "utf8", "ascii"].includes(finalEncoding.toLocaleLowerCase())) {
+	if (!finalEncoding || ["utf-8", "utf8", "ascii"].includes(finalEncoding.toLowerCase())) {
 		finalEncoding = "utf8"
 		await retry(() => safeWriteFile(filePath, content, finalEncoding))
 	} else {

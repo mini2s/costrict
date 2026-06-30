@@ -685,6 +685,10 @@ export class DiffViewProvider {
 	}> {
 		const absolutePath = path.resolve(this.cwd, relPath)
 
+		// Strip any BOM characters from the content, mirroring the `update()` method
+		// so the background-edit path is consistent with the diff-view path.
+		content = this.stripAllBOMs(content)
+
 		// Get diagnostics before editing the file
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
