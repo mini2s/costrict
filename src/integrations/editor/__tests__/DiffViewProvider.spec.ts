@@ -456,6 +456,18 @@ describe("DiffViewProvider", () => {
 			expect((diffViewProvider as any).relPath).toBe("test.ts")
 			expect((diffViewProvider as any).newContent).toBe("new content")
 		})
+
+		it("should strip BOM from content before writing", async () => {
+			// Background-edit path (saveDirectly) must mirror update()'s stripAllBOMs
+			// behavior so AI-generated BOMs don't leak into the file.
+			await diffViewProvider.saveDirectly("test.ts", "\uFEFFnew content", true, false, 1000)
+
+			const { writeFileWithEncodingPreservation } = await import("../../../utils/encoding")
+			expect(writeFileWithEncodingPreservation).toHaveBeenCalledWith(`${mockCwd}/test.ts`, "new content")
+
+			// Stored/returned content should also be BOM-free.
+			expect((diffViewProvider as any).newContent).toBe("new content")
+		})
 	})
 
 	describe("saveChanges method with diagnostic settings", () => {

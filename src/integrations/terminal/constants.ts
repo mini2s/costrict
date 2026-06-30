@@ -41,6 +41,18 @@ export const GBK_ENCODED_COMMANDS = [
 	"label", // Disk labeling
 	"fsutil", // File system utility
 
+	// --- MSVC C/C++ Toolchain ---
+	"cl", // MSVC C/C++ compiler (warnings/errors localized, e.g. Chinese diagnostic messages)
+	"link", // MSVC linker (localized status/error messages)
+	"nmake", // Microsoft Make (build output is localized)
+	"lib", // MSVC Library Manager (localized messages)
+	"rc", // Resource Compiler (localized error messages)
+
+	// --- .NET Toolchain ---
+	"dotnet", // .NET CLI (build/run/publish output is localized on Chinese Windows)
+	"msbuild", // MSBuild (compiler warnings/errors are localized)
+	"nuget", // NuGet CLI (restore/pack messages are localized)
+
 	// --- Utilities ---
 	"chcp", // Change code page
 	"reg", // Registry operations
