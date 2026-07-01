@@ -180,7 +180,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 			}
 		} catch (error) {
 			this.logger.info(
-				`[createMessage] getting new tokens failed \n\nuse old tokens: ${this.client?.apiKey} \n\n${error.message}`,
+				`[createMessage] getting new tokens failed \n\nuse old tokens: ${(this.client?.apiKey || "").slice(0, 8)}******** \n\n${error.message}`,
 			)
 		}
 		let requestOptions
@@ -216,7 +216,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 				let responseIdTimestamp: number | undefined
 				try {
 					requestIdTimestamp = Date.now()
-					this.logger.debug(`[RequestID ${requestOptions.model}]:`, requestId)
+					this.logger.info(`[RequestID ${requestOptions.model}]:`, requestId)
 
 					if (metadata?.onRequestHeadersReady && typeof metadata.onRequestHeadersReady === "function") {
 						metadata.onRequestHeadersReady(_headers)
@@ -231,7 +231,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 							}),
 						)
 						.withResponse()
-					this.logger.debug(`[ResponseID ${requestOptions.model}]:`, response.headers.get("x-request-id"))
+					this.logger.info(`[ResponseID ${requestOptions.model}]:`, response.headers.get("x-request-id"))
 					responseIdTimestamp = Date.now()
 					if (isAuto) {
 						selectedLLM = response.headers.get("x-select-llm") || ""
@@ -255,7 +255,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 				}
 
 				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-				isDev && this.logger.info(`[ResponseID ${requestOptions.model} sse render start]:`, requestId)
+				this.logger.info(`[ResponseID ${requestOptions.model} sse render start]:`, requestId)
 
 				// 6. Optimize stream processing - use batch processing and buffer
 				yield* this.handleOptimizedStream(
@@ -339,7 +339,7 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 				}
 			}
 		} finally {
-			this.logger.debug(`[ResponseID ${requestOptions?.model ?? modelId} sse createMessage end]:`, requestId)
+			this.logger.info(`[ResponseID ${requestOptions?.model ?? modelId} sse createMessage end]:`, requestId)
 		}
 	}
 

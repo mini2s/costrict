@@ -585,4 +585,33 @@ describe("shouldShowContextMenu", () => {
 		// This case means the regex wouldn't match anyway, but confirms context menu logic
 		expect(shouldShowContextMenu("@/path/with space", 13)).toBe(false) // Cursor after unescaped space
 	})
+
+	// --- Tests for Slash Commands ---
+	it("should return true for a single slash with cursor right after it", () => {
+		expect(shouldShowContextMenu("/", 1)).toBe(true)
+	})
+
+	it("should return true for a slash command with cursor at the end (no spaces)", () => {
+		expect(shouldShowContextMenu("/help", 5)).toBe(true)
+	})
+
+	it("should show menu when slash is typed before existing content with spaces", () => {
+		// Bug scenario: existing content "hello world", user moves cursor to the start and
+		// types "/". Text becomes "/hello world" with the cursor right after the "/".
+		expect(shouldShowContextMenu("/hello world", 1)).toBe(true)
+	})
+
+	it("should show menu while typing a command query before existing content", () => {
+		// User typed "/ex" before "hello world": "/exhello world", cursor right after "ex".
+		expect(shouldShowContextMenu("/exhello world", 3)).toBe(true)
+	})
+
+	it("should return false once a space appears within the slash command query", () => {
+		// The part between "/" and the cursor contains a space -> not a command query anymore.
+		expect(shouldShowContextMenu("/help world", 6)).toBe(false)
+	})
+
+	it("should not treat a slash that is not at the start as a command", () => {
+		expect(shouldShowContextMenu("hello /world", 12)).toBe(false)
+	})
 })

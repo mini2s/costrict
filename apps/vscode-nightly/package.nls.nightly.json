@@ -1,7 +1,7 @@
 {
 	"extension.displayName": "CoStrict Nightly",
-	"extension.displayName.long": "CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)",
-	"extension.description": "CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)",
+	"extension.displayName.long": "CoStrict Nightly",
+	"extension.description": "CoStrict Nightly - strict AI coder for enterprises, quality first, including AI Agent, AI CodeReview, AI Completion.",
 	"views.contextMenu.label": "CoStrict Nightly",
 	"views.terminalMenu.label": "CoStrict Nightly",
 	"views.activitybar.title": "CoStrict Nightly",

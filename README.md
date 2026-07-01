@@ -48,7 +48,7 @@ _Free • Open Source • Private Deployment_
 <table>
   <tr>
     <td align="center" width="25%">
-      <b>🌟 CoStrict Cloud (Experimental)</b><br><br>
+      <b>🌟 CoStrict Cloud</b><br><br>
       <a href="https://docs.costrict.ai/cli/product-characteristics/cloud">
         <img src="https://img.shields.io/badge/Cloud-Documentation-blue?style=for-the-badge" alt="Cloud Docs">
       </a>

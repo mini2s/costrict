@@ -1,7 +1,7 @@
 {
 	"extension.displayName": "CoStrict",
-	"extension.displayName.long": "CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)",
-	"extension.description": "CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)",
+	"extension.displayName.long": "CoStrict",
+	"extension.description": "CoStrict - strict AI coder for enterprises, quality first, including AI Agent, AI CodeReview, AI Completion.",
 	"views.contextMenu.label": "CoStrict",
 	"views.terminalMenu.label": "CoStrict",
 	"views.activitybar.title": "CoStrict",
