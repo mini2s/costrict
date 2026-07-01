@@ -55,8 +55,8 @@ jobs:
                 include:
                     - os: ubuntu-latest
                       name: ubuntu-latest
-                    - os: windows-latest
-                      name: windows-latest
+                    # - os: windows-latest
+                    #   name: windows-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4

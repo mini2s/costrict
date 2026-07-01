@@ -2,6 +2,16 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [3.0.12]
+
+- Clean up branding and descriptions
+- Fix slash command context detection
+- Add `forcePreserveReasoning` option for preserving empty reasoning content in transform
+- Expand GBK command list for MSVC/.NET toolchains, strip BOM in saveDirectly
+- Optimize prompt
+- update docs
+- Fix known issues
+
 ## [3.0.11]
 
 - Enhance form state persistence by excluding React controlled elements (#1325)

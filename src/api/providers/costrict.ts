@@ -254,7 +254,6 @@ export class CostrictAiHandler extends BaseProvider implements SingleCompletionH
 					throw handleOpenAIError(error, this.providerName)
 				}
 
-				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 				this.logger.info(`[ResponseID ${requestOptions.model} sse render start]:`, requestId)
 
 				// 6. Optimize stream processing - use batch processing and buffer
