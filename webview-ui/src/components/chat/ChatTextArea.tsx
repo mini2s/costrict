@@ -397,15 +397,23 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (type === ContextMenuOptionType.Command && value) {
 					// Handle command selection.
 					setSelectedMenuIndex(-1)
-					setInputValue("")
 					setShowContextMenu(false)
-
-					// Insert the command mention into the textarea
+	
+					// Insert the command mention into the textarea. Only replace the slash-command
+					// query (from the "/" up to the cursor) with the selected command, preserving
+					// any content that already existed after the cursor (e.g. when "/" was typed
+					// before existing text).
 					const commandMention = `/${value}`
-					setInputValue(commandMention + " ")
-					setCursorPosition(commandMention.length + 1)
-					setIntendedCursorPosition(commandMention.length + 1)
-
+					const fullText = textAreaRef.current?.value ?? ""
+					const slashIndex = fullText.lastIndexOf("/", cursorPosition)
+					const beforeSlash = slashIndex >= 0 ? fullText.slice(0, slashIndex) : ""
+					const afterCursor = slashIndex >= 0 ? fullText.slice(cursorPosition) : ""
+					const newCommandValue = beforeSlash + commandMention + " " + afterCursor
+					setInputValue(newCommandValue)
+					const newCommandCursorPosition = beforeSlash.length + commandMention.length + 1
+					setCursorPosition(newCommandCursorPosition)
+					setIntendedCursorPosition(newCommandCursorPosition)
+	
 					// Focus the textarea
 					setTimeout(() => {
 						if (textAreaRef.current) {
@@ -668,9 +676,16 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 
 				if (showMenu) {
-					if (newValue.startsWith("/") && !newValue.includes(" ")) {
-						// Handle slash command - request fresh commands
-						const query = newValue
+					// A slash command context is active only when the text starts with "/" and the
+					// segment between "/" and the cursor has no space. Only that segment is the
+					// command query, so existing content (with spaces) after the cursor does not
+					// prevent the slash menu from being detected.
+					const isSlashCommand =
+						newValue.startsWith("/") && !newValue.slice(1, newCursorPosition).includes(" ")
+					if (isSlashCommand) {
+						// Handle slash command - request fresh commands.
+						// The query is only the text from "/" up to the cursor.
+						const query = newValue.slice(0, newCursorPosition)
 						setSearchQuery(query)
 						// Set to first selectable item (skip section headers)
 						setSelectedMenuIndex(1) // Section header is at 0, first command is at 1

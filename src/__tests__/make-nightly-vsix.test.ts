@@ -85,8 +85,8 @@ describe("make-nightly-vsix patchPackageJson", () => {
 <PackageManifest>
 	<Metadata>
 		<Identity Language="en-US" Id="zgsm-nightly" Version="3.0.0" Publisher="zgsm-ai" />
-		<DisplayName>CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>
-		<Description xml:space="preserve">CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</Description>
+		<DisplayName>CoStrict</DisplayName>
+		<Description xml:space="preserve">CoStrict - strict AI coder for enterprises, quality first, including AI Agent, AI CodeReview, AI Completion.</Description>
 	</Metadata>
 </PackageManifest>`,
 		)
@@ -95,13 +95,13 @@ describe("make-nightly-vsix patchPackageJson", () => {
 
 		const patchedManifest = fs.readFileSync(manifestPath, "utf8")
 		expect(patchedManifest).toContain(
-			"<DisplayName>CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>",
+			"<DisplayName>CoStrict Nightly</DisplayName>",
 		)
 		expect(patchedManifest).toContain(
-			'<Description xml:space="preserve">CoStrict Nightly (prev. Cline / RooCode with Code Review AI Coding Agent)</Description>',
+			'<Description xml:space="preserve">CoStrict Nightly - strict AI coder for enterprises, quality first, including AI Agent, AI CodeReview, AI Completion.</Description>',
 		)
 		expect(patchedManifest).not.toContain(
-			"<DisplayName>CoStrict (prev. Cline / RooCode with Code Review AI Coding Agent)</DisplayName>",
+			"<DisplayName>CoStrict</DisplayName>",
 		)
 	})
 

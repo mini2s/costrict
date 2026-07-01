@@ -48,7 +48,7 @@ English | [简体中文](./README.zh-CN.md)
 <table>
   <tr>
     <td align="center" width="25%">
-      <b>🌟 CoStrict Cloud（实验性）</b><br><br>
+      <b>🌟 CoStrict Cloud</b><br><br>
       <a href="https://docs.costrict.ai/cli/product-characteristics/cloud">
         <img src="https://img.shields.io/badge/Cloud-Documentation-blue?style=for-the-badge" alt="Cloud Docs">
       </a>

@@ -140,25 +140,25 @@ async function generatePrompt(data: {
 	const usePurePrompts = modeConfig.pure === true
 
 	const disableSwitchMode = modeConfig.disableSwitchMode === true
-	// # Reminder: Instructions for Tool Use
-	// === Cache-optimized prompt structure ===
-	// Static sections are placed FIRST to maximize prompt cache hit rate.
-	// Dynamic content (cwd, mode, user rules) is pushed to the end.
-	// See: plans/system-prompt-cache-optimization.md
 
 	// Determine if English-only rule should be added (for non-Chinese languages)
 	const shouldAddEnglishOnlyRule = language !== "zh-CN"
 
+	// === Cache-optimized prompt structure ===
+	// Static sections (fixed text) are grouped FIRST to form a stable cache prefix.
+	// Dynamic sections (modes/skills depend on current mode; system-info depends on
+	// cwd/shell; custom-instructions depends on user rules) are pushed to the END.
+	// Reordering these breaks prompt cache continuity — see plans/system-prompt-cache-optimization.md
 	const basePrompt = `${roleDefinition}
 ${usePurePrompts ? "" : markdownFormattingSection()}
 ${usePurePrompts ? "" : useLitePrompts ? getLiteSharedToolUseSection() : getSharedToolUseSection()}
 ${usePurePrompts ? "" : useLitePrompts ? getLiteToolUseGuidelinesSection() : getToolUseGuidelinesSection()}
 ${usePurePrompts ? "" : useLitePrompts ? getLiteObjectiveSection() : getObjectiveSection()}
 ${usePurePrompts || !shouldAddEnglishOnlyRule ? "" : getEnglishOnlySection()}
-${disableSwitchMode ? "" : modesSection}
-${usePurePrompts ? "" : skillsSection ? `\n${skillsSection}` : ""}
 ${usePurePrompts ? "" : useLitePrompts ? getLiteCapabilitiesSection(cwd, shouldIncludeMcp ? mcpHub : undefined) : getCapabilitiesSection(cwd, shouldIncludeMcp ? mcpHub : undefined)}
 ${usePurePrompts ? "" : useLitePrompts ? getLiteRulesSection(cwd, settings, experiments) : getRulesSection(cwd, settings, experiments)}
+${disableSwitchMode ? "" : modesSection}
+${usePurePrompts ? "" : skillsSection ? `\n${skillsSection}` : ""}
 ${usePurePrompts ? "" : getSystemInfoSection(cwd, shell)}
 ${await addCustomInstructions(baseInstructions, globalCustomInstructions || "", cwd, mode, {
 	language: language ?? formatLanguage(await defaultLang()),

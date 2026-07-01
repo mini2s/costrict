@@ -377,9 +377,16 @@ export function getContextMenuOptions(
 export function shouldShowContextMenu(text: string, position: number): boolean {
 	const beforeCursor = text.slice(0, position)
 
-	// Check if we're in a slash command context (at the beginning and no space yet)
-	if (text.startsWith("/") && !text.includes(" ") && position <= text.length) {
-		return true
+	// Check if we're in a slash command context.
+	// The "/" must be at the start of the text, and only the segment between the "/" and
+	// the cursor counts as the command query. Checking just that segment (instead of the
+	// whole text) lets the menu appear even when there is other content (with spaces)
+	// after the cursor - e.g. typing "/" before existing "hello world".
+	if (text.startsWith("/")) {
+		const slashCommandPart = text.slice(1, position)
+		if (!slashCommandPart.includes(" ") && position <= text.length) {
+			return true
+		}
 	}
 
 	// Check for @ mention context

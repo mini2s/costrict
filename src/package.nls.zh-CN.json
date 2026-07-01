@@ -1,7 +1,7 @@
 {
 	"extension.displayName": "CoStrict",
-	"extension.displayName.long": "CoStrict (prev. Cline / RooCode)：智能编程助手",
-	"extension.description": "CoStrict：企业严肃开发的AI智能伙伴，功能包括：AI 智能体、AI 代码审查与 AI 代码补全。",
+	"extension.displayName.long": "CoStrict",
+	"extension.description": "CoStrict - strict AI coder for enterprises, quality first, including AI Agent, AI CodeReview, AI Completion.",
 	"command.newTask.title": "新建任务",
 	"command.explainCode.title": "解释代码",
 	"command.fixCode.title": "修复代码",
