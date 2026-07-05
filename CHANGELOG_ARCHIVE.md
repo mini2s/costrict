@@ -2,6 +2,32 @@
 
 > This file contains historical version records. For the latest versions, please visit [CHANGELOG.md](./CHANGELOG.md)
 
+## [2.8.14]
+
+- Implement `disableSwitchMode` functionality to restrict tool usage in strict mode (#1291)
+- Fix correct path resolution for cospec metadata update (#1292)
+- Add EXDEV fallback strategy to `safeWriteJson` for cross-device rename handling (#1293)
+- Remove redundant 0 in model list (#1295)
+
+## [2.8.13]
+
+- Add exclusion for additional bundled skill files in review generation (#1285)
+- Guard axios socket keepalive call (#1283)
+- Fix known issues
+
+## [2.8.12]
+
+- Add timeout option to CoStrict model fetching and caching (#1276)
+- Migrate pnpm config to workspace yaml and apply security overrides (#1273)
+- Fix vitest Mock type compatibility and add missing node types (#1273)
+- Add built-in skills notification
+- Fix known issues
+
+## [2.8.11]
+
+- Maintenance release with documentation updates
+- Optimize model list refresh (#1268)
+
 ## [2.8.10]
 
 - Add third-party skill support
