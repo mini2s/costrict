@@ -2,6 +2,12 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [3.0.14]
+
+- Add preferences for CoStrict Cloud
+- Auto Refresh Auth Token for CoStrict Cloud
+- Fix known issues
+
 ## [3.0.13]
 
 - Optimize CoStrict Cloud
