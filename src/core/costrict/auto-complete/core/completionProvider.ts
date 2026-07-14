@@ -222,7 +222,11 @@ export class CompletionProvider {
 			}
 			return outcome
 		} catch (e) {
-			// 9. 错误处理：调用回调并返回 undefined
+			// 9. 错误处理
+			// 用户继续输入等场景触发的取消是预期行为，不应上报为错误
+			if (token?.aborted || (e as any)?.name === "AbortError") {
+				return undefined
+			}
 			this.onError(e)
 			return undefined
 		} finally {

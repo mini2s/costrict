@@ -599,9 +599,10 @@ export class CoworkflowCodeLensProvider implements ICoworkflowCodeLensProvider {
 		let update = t("workflow:actions.update")
 		switch (actionType) {
 			case "update":
-				return "$(edit) " + ["requirements", "design"].includes(documentType)
-					? t(`workflow:actions.${documentType}`)
-					: update
+				return (
+					"$(edit) " +
+					(["requirements", "design"].includes(documentType) ? t(`workflow:actions.${documentType}`) : update)
+				)
 			case "run":
 				return "$(play) " + t("workflow:actions.run")
 			case "run_all":

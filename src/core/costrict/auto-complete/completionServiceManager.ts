@@ -24,6 +24,8 @@ export class CompletionServiceManager {
 			// Code completion service
 			vscode.languages.registerInlineCompletionItemProvider({ pattern: "**" }, this.inlineCompletionProvider),
 		)
+		// Ensure the provider's own resources (timers, listeners) are disposed on deactivation
+		this.context.subscriptions.push(this.inlineCompletionProvider)
 		this.context.subscriptions.push(
 			vscode.commands.registerCommand(`${Package.commandIDPrefix}-completion.shortKeyCut`, async () => {
 				await this.context.workspaceState.update("shortCutKeys", true)

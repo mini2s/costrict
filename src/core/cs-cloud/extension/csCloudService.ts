@@ -476,17 +476,40 @@ export class CsCloudService extends EventEmitter implements vscode.Disposable {
 				env: { ...process.env },
 			})
 
-			child.on("error", (err) => reject(err))
+			let settled = false
+			let fallbackTimer: NodeJS.Timeout
 
-			this.childProcess = child
-			child.on("exit", (code) => {
-				if (this.state === "running") {
-					this.handleCrashDetected(`cs-cloud process exited, exit code: ${code}`)
+			const doResolve = () => {
+				if (settled) return
+				settled = true
+				clearTimeout(fallbackTimer)
+				this.childProcess = child
+				child.on("exit", (code) => {
+					if (this.state === "running") {
+						this.handleCrashDetected(`cs-cloud process exited, exit code: ${code}`)
+					}
+				})
+				child.unref()
+				resolve()
+			}
+
+			// Prefer the "spawn" event (fires only after the child has spawned
+			// successfully), so that "error" fires first if spawning fails.
+			child.on("spawn", doResolve)
+
+			// Fallback: some cross-spawn/platform combinations may not emit "spawn".
+			// Resolve after a short delay so the caller is not left hanging forever.
+			// If "error" fires first, it will reject instead.
+			fallbackTimer = setTimeout(doResolve, 1000)
+			fallbackTimer.unref()
+
+			child.on("error", (err) => {
+				if (!settled) {
+					settled = true
+					clearTimeout(fallbackTimer)
+					reject(err)
 				}
 			})
-
-			child.unref()
-			resolve()
 		})
 	}
 

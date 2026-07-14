@@ -120,7 +120,7 @@ export class CompletionStatusBar {
 		} else if (error.message?.includes(OPENAI_CLIENT_NOT_INITIALIZED)) {
 			codeMsg = t("common:completion.code.401")
 			solutionMsg = t("common:completion.solution.401")
-		} else if (error.message?.includes(OPENAI_REQUEST_ABORTED)) {
+		} else if (error.message?.includes(OPENAI_REQUEST_ABORTED) || (error as any)?.name === "AbortError") {
 			codeMsg = t("common:completion.code.aborted")
 			solutionMsg = t("common:completion.solution.aborted")
 		} else {
@@ -143,6 +143,8 @@ export class CompletionStatusBar {
 	private setExtensionStatus(enabled: boolean) {
 		const config = vscode.workspace.getConfiguration()
 		const target = vscode.ConfigurationTarget.Global
-		config.update(`${Package.commandIDPrefix}.completion.enabled`, enabled, target, false).then(console.error)
+		config
+			.update(`${Package.commandIDPrefix}.completion.enabled`, enabled, target, false)
+			.then(undefined, console.error)
 	}
 }
