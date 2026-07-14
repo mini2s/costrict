@@ -68,7 +68,7 @@ export class CostrictAuthApi {
 		try {
 			const baseUrl = await this.getApiBaseUrl()
 			const params = getParams(state || "", ["machine_code"])
-			const url = `${baseUrl}?${params.map((p) => p.join("=")).join("&")}`
+			const url = `${joinUrl(baseUrl, [this.logoutUrl])}?${params.map((p) => p.join("=")).join("&")}`
 
 			await fetch(url, {
 				method: "GET",

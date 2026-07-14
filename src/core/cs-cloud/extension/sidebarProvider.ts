@@ -24,6 +24,27 @@ export function getAssistantUIWorkspaceDirectory() {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 }
 
+/**
+ * Commands that the Cloud UI webview is allowed to execute on the extension host.
+ * Without this allowlist, a compromised/remote Cloud UI page could invoke any
+ * VS Code command (file writes, terminal, settings, etc.).
+ */
+const ALLOWED_EXECUTE_COMMANDS = new Set<string>(["workbench.action.reloadWindow", "setContext"])
+
+/**
+ * Validate that a URL uses a protocol safe for the extension host to fetch.
+ * Only http/https are allowed; this blocks file://, smb://, etc. without
+ * restricting cross-origin access, which proxyFetch is designed to support.
+ */
+function isSafeFetchUrl(rawUrl: string): boolean {
+	try {
+		const parsed = new URL(rawUrl)
+		return parsed.protocol === "http:" || parsed.protocol === "https:"
+	} catch {
+		return false
+	}
+}
+
 const execFileAsync = promisify(execFile)
 
 async function getGitBranches(cwd: string): Promise<{ branches: string[]; current: string }> {
@@ -180,13 +201,33 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					return
 				}
 				if (message.type === "openExternal" && message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
+					// Only allow http/https to prevent opening file://, smb://, etc.
+					try {
+						const uri = vscode.Uri.parse(message.url)
+						if (uri.scheme === "http" || uri.scheme === "https") {
+							vscode.env.openExternal(uri)
+						}
+					} catch {
+						// Invalid URL, ignore
+					}
 				}
 				if (message.type === "openFile" && message.path) {
 					const workspaceDir = getAssistantUIWorkspaceDirectory()
-					const filePath = path.isAbsolute(message.path)
-						? message.path
-						: path.join(workspaceDir || "", message.path)
+					let filePath: string
+					if (path.isAbsolute(message.path)) {
+						filePath = message.path
+					} else {
+						filePath = path.resolve(workspaceDir || "", message.path)
+						// Prevent path traversal for relative paths: resolved path
+						// must stay within the workspace directory.
+						if (
+							workspaceDir &&
+							filePath !== workspaceDir &&
+							!filePath.startsWith(workspaceDir + path.sep)
+						) {
+							return
+						}
+					}
 					const uri = vscode.Uri.file(filePath)
 					vscode.commands.executeCommand("vscode.open", uri)
 				}
@@ -194,7 +235,10 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					void openDiffView(message.path, message.patch)
 				}
 				if (message.type === "executeCommand" && message.command) {
-					vscode.commands.executeCommand(message.command)
+					// Only allow whitelisted commands to prevent arbitrary command execution
+					if (ALLOWED_EXECUTE_COMMANDS.has(message.command)) {
+						vscode.commands.executeCommand(message.command)
+					}
 				}
 				if (message.type === "reloadAssistantUI") {
 					// Clear cache on manual reload
@@ -253,6 +297,17 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					return
 				}
 				if (message.type === "proxyFetch" && message.requestId && message.input) {
+					// Only allow http/https to block file://, smb://, etc.
+					if (!isSafeFetchUrl(message.input)) {
+						await webviewView.webview.postMessage({
+							type: "proxyFetchError",
+							requestId: message.requestId,
+							status: 403,
+							statusText: "URL not allowed",
+							error: "URL not allowed",
+						})
+						return
+					}
 					const abortController = new AbortController()
 					this.proxyFetchControllers.set(message.requestId, abortController)
 					try {
@@ -327,6 +382,11 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					return
 				}
 				if (message.type === "fetchQuota" && message.baseUrl && message.token) {
+					// Only allow http/https to block file://, smb://, etc.
+					if (!isSafeFetchUrl(message.baseUrl)) {
+						webviewView.webview.postMessage({ type: "quotaResult", data: null })
+						return
+					}
 					try {
 						const response = await fetch(`${message.baseUrl}/quota-manager/api/v1/quota`, {
 							headers: {
