@@ -28,8 +28,17 @@ export function getAssistantUIWorkspaceDirectory() {
  * Commands that the Cloud UI webview is allowed to execute on the extension host.
  * Without this allowlist, a compromised/remote Cloud UI page could invoke any
  * VS Code command (file writes, terminal, settings, etc.).
+ *
+ * Allowed: the explicit set below, plus every command under this extension's own
+ * prefix (e.g. `costrict.*`). Extension commands are owned by us and safe to route;
+ * arbitrary VS Code / third-party commands stay blocked.
  */
 const ALLOWED_EXECUTE_COMMANDS = new Set<string>(["workbench.action.reloadWindow", "setContext"])
+
+function isAllowedExecuteCommand(command: string): boolean {
+	if (ALLOWED_EXECUTE_COMMANDS.has(command)) return true
+	return command === Package.commandIDPrefix || command.startsWith(`${Package.commandIDPrefix}.`)
+}
 
 /**
  * Validate that a URL uses a protocol safe for the extension host to fetch.
@@ -236,7 +245,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				}
 				if (message.type === "executeCommand" && message.command) {
 					// Only allow whitelisted commands to prevent arbitrary command execution
-					if (ALLOWED_EXECUTE_COMMANDS.has(message.command)) {
+					if (isAllowedExecuteCommand(message.command)) {
 						vscode.commands.executeCommand(message.command)
 					}
 				}
