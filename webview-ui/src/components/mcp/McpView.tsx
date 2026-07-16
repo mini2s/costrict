@@ -281,7 +281,14 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						style={{ marginRight: "8px" }}
 					/>
 				)}
-				<span style={{ flex: 1 }}>
+				<span
+					style={{
+						flex: 1,
+						minWidth: 0,
+						overflow: "hidden",
+						whiteSpace: "nowrap",
+						textOverflow: "ellipsis",
+					}}>
 					{server.name}
 					{server.source && (
 						<span
@@ -298,7 +305,12 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 					)}
 				</span>
 				<div
-					style={{ display: "flex", alignItems: "center", marginRight: "8px" }}
+					style={{
+						display: "flex",
+						alignItems: "center",
+						marginRight: "8px",
+						flexShrink: 0,
+					}}
 					onClick={(e) => e.stopPropagation()}>
 					<Button
 						variant="ghost"
@@ -323,9 +335,10 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						borderRadius: "50%",
 						background: getStatusColor(),
 						marginLeft: "8px",
+						flexShrink: 0,
 					}}
 				/>
-				<div style={{ marginLeft: "8px" }}>
+				<div style={{ marginLeft: "8px", flexShrink: 0 }}>
 					<ToggleSwitch
 						checked={!server.disabled}
 						onChange={() => {
