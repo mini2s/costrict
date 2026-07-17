@@ -2,7 +2,8 @@
 	"compilerOptions": {
 		"baseUrl": ".",
 		"paths": {
-			"@roo-code/logger": ["../packages/logger/src/index.ts"]
+			"@roo-code/logger": ["../packages/logger/src/index.ts"],
+			"@node-ipc/node-ipc": ["../packages/ipc/src/node-ipc.d.ts"]
 		},
 		"types": ["vitest/globals"],
 		"esModuleInterop": true,

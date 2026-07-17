@@ -1,7 +1,7 @@
 import EventEmitter from "node:events"
 import * as crypto from "node:crypto"
 
-import ipc from "node-ipc"
+import ipc from "@node-ipc/node-ipc"
 
 import {
 	type TaskCommand,
