@@ -4,6 +4,10 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"noEmit": true,
+		"baseUrl": ".",
+		"paths": {
+			"@node-ipc/node-ipc": ["../ipc/src/node-ipc.d.ts"]
+		},
 		"types": ["vitest/globals"]
 	},
 	"include": ["src", "drizzle.config.ts", "vitest-global-setup.ts"],
