@@ -2,7 +2,7 @@ import EventEmitter from "node:events"
 import { Socket } from "node:net"
 import * as crypto from "node:crypto"
 
-import ipc from "node-ipc"
+import ipc from "@node-ipc/node-ipc"
 
 import {
 	type IpcServerEvents,

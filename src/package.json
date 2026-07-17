@@ -1028,7 +1028,7 @@
 		"mammoth": "^1.9.1",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"node-cache": "^5.1.2",
-		"node-ipc": "12.0.0",
+		"@node-ipc/node-ipc": "11.0.3",
 		"ollama": "^0.5.17",
 		"openai": "^5.12.2",
 		"os-locale": "^6.0.2",

@@ -1,7 +1,12 @@
 {
 	"extends": "@roo-code/config-typescript/base.json",
 	"compilerOptions": {
-		"types": ["vitest/globals"]
+		"baseUrl": ".",
+		"paths": {
+			"@node-ipc/node-ipc": ["./src/node-ipc.d.ts"]
+		},
+		"types": ["vitest/globals"],
+		"ignoreDeprecations": "6.0"
 	},
 	"include": ["src"],
 	"exclude": ["node_modules"]
