@@ -66,8 +66,7 @@
 		"chinese roocode",
 		"roocode中文",
 		"cline中文",
-		"kimi k2",
-		"gemini cli"
+		"kimi k2"
 	],
 	"activationEvents": [
 		"onLanguage",

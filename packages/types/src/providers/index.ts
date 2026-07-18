@@ -7,7 +7,6 @@ export * from "./claude-code.js"
 export * from "./deepseek.js"
 export * from "./fireworks.js"
 export * from "./gemini.js"
-export * from "./gemini-cli.js"
 // export * from "./groq.js"
 // export * from "./huggingface.js"
 // export * from "./io-intelligence.js"
@@ -140,7 +139,6 @@ export function getProviderDefaultModelId(
 		case "vercel-ai-gateway":
 			return vercelAiGatewayDefaultModelId
 		case "anthropic":
-		case "gemini-cli":
 		case "human-relay":
 		case "fake-ai":
 		default:

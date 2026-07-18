@@ -8,9 +8,7 @@ export function checkExistKey(config: ProviderSettings | undefined) {
 	// Special case for fake-ai, openai-codex, qwen-code, and roo providers which don't need any configuration.
 	if (
 		config.apiProvider &&
-		["gemini-cli", "human-relay", "claude-code", "fake-ai", "openai-codex", "qwen-code", "roo"].includes(
-			config.apiProvider,
-		)
+		["human-relay", "claude-code", "fake-ai", "openai-codex", "qwen-code", "roo"].includes(config.apiProvider)
 	) {
 		return true
 	}

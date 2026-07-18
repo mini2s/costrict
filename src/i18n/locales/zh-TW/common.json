@@ -86,16 +86,6 @@
 		"share_not_enabled": "此組織未啟用工作分享功能。",
 		"share_task_not_found": "未找到工作或存取被拒絕。",
 		"delete_rules_folder_failed": "刪除規則資料夾失敗: {{rulesFolderPath}}。錯誤: {{error}}",
-		"geminiCli": {
-			"oauthLoadFailed": "無法載入 OAuth 憑證。請先進行驗證：{{error}}",
-			"tokenRefreshFailed": "無法重新整理 OAuth 權杖：{{error}}",
-			"onboardingTimeout": "新手導引操作在 60 秒後逾時。請稍後再試。",
-			"projectDiscoveryFailed": "無法發現專案 ID。請確保您已使用 'gemini auth' 進行驗證。",
-			"rateLimitExceeded": "超過速率限制。已達到免費層級限制。",
-			"badRequest": "錯誤的請求：{{details}}",
-			"apiError": "Gemini CLI API 錯誤：{{error}}",
-			"completionError": "Gemini CLI 完成錯誤：{{error}}"
-		},
 		"command_not_found": "找不到指令 '{{name}}'",
 		"open_command_file": "開啟指令檔案失敗",
 		"delete_command": "刪除指令失敗",

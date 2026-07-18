@@ -4834,10 +4834,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				state?.customModePrompts,
 				state?.customModes,
 			).join(),
-			allToolNames:
-				apiConfiguration?.apiProvider === "gemini-cli"
-					? allTools.map((tool: any) => resolveToolAlias(tool?.function?.name)).filter((name) => !!name)
-					: undefined,
 			costrictCodeMode,
 			provider: this.apiConfiguration.apiProvider,
 			costrictWorkflowMode: this.costrictWorkflowMode,
