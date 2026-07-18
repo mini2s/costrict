@@ -87,16 +87,6 @@
 		"share_task_not_found": "Task not found or access denied.",
 		"mode_import_failed": "Failed to import mode: {{error}}",
 		"delete_rules_folder_failed": "Failed to delete rules folder: {{rulesFolderPath}}. Error: {{error}}",
-		"geminiCli": {
-			"oauthLoadFailed": "Failed to load OAuth credentials. Please authenticate first: {{error}}",
-			"tokenRefreshFailed": "Failed to refresh OAuth token: {{error}}",
-			"onboardingTimeout": "Onboarding operation timed out after 60 seconds. Please try again later.",
-			"projectDiscoveryFailed": "Could not discover project ID. Make sure you're authenticated with 'gemini auth'.",
-			"rateLimitExceeded": "Rate limit exceeded. Free tier limits have been reached.",
-			"badRequest": "Bad request: {{details}}",
-			"apiError": "Gemini CLI API error: {{error}}",
-			"completionError": "Gemini CLI completion error: {{error}}"
-		},
 		"command_not_found": "Command '{{name}}' not found",
 		"open_command_file": "Failed to open command file",
 		"delete_command": "Failed to delete command",

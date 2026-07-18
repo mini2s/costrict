@@ -20,8 +20,6 @@ import {
 	vscodeLlmDefaultModelId,
 	getClaudeCodeModels,
 	costrictDefaultModelId,
-	geminiCliDefaultModelId,
-	geminiCliModels,
 	normalizeClaudeCodeModelId,
 	openAiCodexModels,
 	sambaNovaModels,
@@ -269,11 +267,6 @@ function getSelectedModel({
 			const info = geminiModels[id as keyof typeof geminiModels]
 			return { id, info }
 		}
-		case "gemini-cli": {
-			const id = apiConfiguration.apiModelId ?? geminiCliDefaultModelId
-			const info = geminiCliModels[id as keyof typeof geminiCliModels]
-			return { id, info }
-		}
 		case "deepseek": {
 			const id = apiConfiguration.apiModelId ?? defaultModelId
 			const info = deepSeekModels[id as keyof typeof deepSeekModels]
@@ -401,8 +394,8 @@ function getSelectedModel({
 		// case "human-relay":
 		// case "fake-ai":
 		default: {
-			// provider satisfies "anthropic" | "gemini-cli" | "qwen-code" | "human-relay" | "fake-ai" | "roo"
-			provider satisfies "anthropic" | "gemini-cli" | "fake-ai" | "human-relay" | "roo"
+			// provider satisfies "anthropic" | "qwen-code" | "human-relay" | "fake-ai" | "roo"
+			provider satisfies "anthropic" | "fake-ai" | "human-relay" | "roo"
 			const id = apiConfiguration.apiModelId ?? defaultModelId
 			const baseInfo = anthropicModels[id as keyof typeof anthropicModels]
 

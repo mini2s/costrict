@@ -12,7 +12,6 @@ import {
 	qwenCodeModels,
 	vertexModels,
 	xaiModels,
-	geminiCliModels,
 	sambaNovaModels,
 	internationalZAiModels,
 	fireworksModels,
@@ -29,7 +28,6 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 	deepseek: deepSeekModels,
 	moonshot: moonshotModels,
 	gemini: geminiModels,
-	"gemini-cli": geminiCliModels,
 	mistral: mistralModels,
 	"openai-native": openAiNativeModels,
 	"openai-codex": openAiCodexModels,
@@ -46,7 +44,6 @@ export const MODELS_BY_PROVIDER: Partial<Record<ProviderName, Record<string, Mod
 
 export const PROVIDERS = [
 	{ value: "costrict", label: "CoStrict", proxy: false },
-	{ value: "gemini-cli", label: "Gemini CLI", proxy: false },
 	{ value: "human-relay", label: "Human Relay", proxy: false },
 	{ value: "openrouter", label: "OpenRouter", proxy: false },
 	{ value: "anthropic", label: "Anthropic", proxy: false },

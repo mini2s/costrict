@@ -322,18 +322,3 @@ You must call ONE tool per assistant response.
 Do not explain your decision.
 
 `
-
-export const getGeminiCliLiteToolGuide = (allowedToolNames?: string[]) => {
-	return `
-# User Local Available Built-in Tools
-
-${liteTools
-	.map((t) => {
-		if (allowedToolNames?.includes(t.toolname) || !allowedToolNames) return t()
-		else return ""
-	})
-	.filter((tn) => !!tn)
-	.join("\n\n")}
-
-`
-}
