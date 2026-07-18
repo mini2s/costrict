@@ -2,6 +2,11 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [3.0.16]
+
+- Remove Gemini CLI provider
+- Optimize CoStrict Cloud Model Select
+
 ## [3.0.15]
 
 - Add multimodal support for CoStrict Cloud
