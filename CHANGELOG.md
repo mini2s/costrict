@@ -2,6 +2,17 @@
 
 > For the complete history, please visit [CHANGELOG_ARCHIVE.md](./CHANGELOG_ARCHIVE.md)
 
+## [3.0.15]
+
+- Add multimodal support for CoStrict Cloud
+- Optimize auto-approve authorization interaction for CoStrict Cloud
+- Fix CoStrict Cloud workspace error with Chinese character directory paths
+- Replace compromised node-ipc with community-maintained @node-ipc/node-ipc fork
+- Allow extension-owned commands in Cloud UI webview executeCommand allowlist
+- Fix MCP ServerRow controls shrinking in narrow panels
+- Fix hidden bugs across auth, auto-complete, workflow codelens, and csCloud services
+- Fix known issues
+
 ## [3.0.14]
 
 - Add preferences for CoStrict Cloud
