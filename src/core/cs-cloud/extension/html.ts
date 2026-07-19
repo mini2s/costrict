@@ -647,7 +647,21 @@ export function getCrashedHtml(reason?: string): string {
 }
 
 export function getAssistantUILoadingHtml(context: vscode.ExtensionContext, loadingText?: string) {
-	const csp = ["default-src 'none'", `style-src 'unsafe-inline'`].join("; ")
+	// Keep `default-src 'none'` (no fonts/images/etc. needed on the loading page) but add
+	// an explicit `script-src 'nonce-...'`. Without it, CSP falls back to `default-src
+	// 'none'` and blocks ALL scripts — including the `acquireVsCodeApi` mock that the
+	// JetBrains host injects into this page to bridge webview ↔ Java IPC. That left the
+	// loading screen stuck on "Starting CoStrict Cloud..." forever. See cs-cloud issue:
+	// loading page never advanced under the JetBrains plugin.
+	//
+	// The generated nonce is applied to any <script> tag in this HTML (currently none,
+	// but keeps the page future-proof) and the JetBrains host rewrites it on its side
+	// when it injects its own mock.
+	const nonce = getNonce()
+	const csp = ["default-src 'none'", `style-src 'unsafe-inline'`, `script-src 'nonce-${nonce}'`].join("; ")
+	const loadingMarkup = getLoadingMarkup(getAssistantUILogoSvg(context), loadingText)
+	// AddNonce any <script> tags that may appear inside the markup (no-op today).
+	const safeMarkup = addNonceToScriptTags(loadingMarkup, nonce)
 	return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -662,7 +676,7 @@ export function getAssistantUILoadingHtml(context: vscode.ExtensionContext, load
   </style>
 </head>
 <body>
-  ${getLoadingMarkup(getAssistantUILogoSvg(context), loadingText)}
+  ${safeMarkup}
 </body>
 </html>`
 }
