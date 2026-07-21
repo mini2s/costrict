@@ -1532,6 +1532,19 @@ export const webviewMessageHandler = async (
 				vscode.env.openExternal(vscode.Uri.parse(message.url))
 			}
 			break
+		case "executeCommand":
+			// Execute a VS Code command from a markdown link (command: prefix).
+			// Only allow a bare command id + args; reject anything that looks like it
+			// escaped the command: scheme (e.g. "command:foo"); executeCommand itself
+			// is the source of truth for whether the command exists.
+			if (message.command && typeof message.command === "string") {
+				const cmd = message.command.trim()
+				// Reject obvious path-like / url-like payloads; commands don't contain "/" or ":".
+				if (!/[\/:]/.test(cmd)) {
+					vscode.commands.executeCommand(cmd)
+				}
+			}
+			break
 		case "checkpointDiff":
 			const result = checkoutDiffPayloadSchema.safeParse(message.payload)
 

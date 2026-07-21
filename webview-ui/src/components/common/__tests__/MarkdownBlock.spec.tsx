@@ -1,6 +1,7 @@
-import { render, screen } from "@/utils/test-utils"
+import { render, screen, fireEvent } from "@/utils/test-utils"
 
 import MarkdownBlock from "../MarkdownBlock"
+import { vscode } from "@src/utils/vscode"
 
 vi.mock("@src/utils/vscode", () => ({
 	vscode: {
@@ -13,6 +14,8 @@ vi.mock("@src/context/ExtensionStateContext", () => ({
 		theme: "dark",
 	}),
 }))
+
+const mockedPostMessage = vscode.postMessage as unknown as ReturnType<typeof vi.fn>
 
 describe("MarkdownBlock", () => {
 	it("should correctly handle URLs with trailing punctuation", async () => {
@@ -114,5 +117,93 @@ describe("MarkdownBlock", () => {
 		expect(screen.getByText("Second level unordered")).toBeInTheDocument()
 		expect(screen.getByText("Third level ordered")).toBeInTheDocument()
 		expect(screen.getByText("Back to first level")).toBeInTheDocument()
+	})
+
+	describe("link click handling", () => {
+		beforeEach(() => {
+			mockedPostMessage.mockClear()
+		})
+
+		it("relative path -> openFile with ./ prefix", async () => {
+			render(<MarkdownBlock markdown="[link](AGENTS.md)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openFile", text: "./AGENTS.md" }),
+			)
+		})
+
+		it("./relative path -> openFile as-is", async () => {
+			render(<MarkdownBlock markdown="[link](./src/foo.ts)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openFile", text: "./src/foo.ts" }),
+			)
+		})
+
+		it("absolute path -> openFile without ./ prefix", async () => {
+			render(<MarkdownBlock markdown="[link](/etc/hosts)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openFile", text: "/etc/hosts" }),
+			)
+		})
+
+		it("file:// path -> openFile with file:// stripped", async () => {
+			render(<MarkdownBlock markdown="[link](file:///tmp/x.md)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openFile", text: "/tmp/x.md" }),
+			)
+		})
+
+		it("path with line number -> openFile with values.line", async () => {
+			render(<MarkdownBlock markdown="[link](./src/foo.ts:123)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openFile", text: "./src/foo.ts", values: { line: 123 } }),
+			)
+		})
+
+		it("https URL -> openExternal (never falls through to webview navigation)", async () => {
+			render(<MarkdownBlock markdown="[link](https://example.com)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openExternal", url: "https://example.com" }),
+			)
+		})
+
+		it("command link -> executeCommand", async () => {
+			render(<MarkdownBlock markdown="[link](command:workbench.action.openWalkthrough)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "executeCommand",
+					command: "workbench.action.openWalkthrough",
+				}),
+			)
+		})
+
+		it("mailto link -> openExternal", async () => {
+			render(<MarkdownBlock markdown="[link](mailto:test@example.com)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "openExternal", url: "mailto:test@example.com" }),
+			)
+		})
+
+		it("in-page anchor (#) -> does not post any message", async () => {
+			render(<MarkdownBlock markdown="[link](#section)" />)
+			const link = await screen.findByRole("link", { name: "link" })
+			fireEvent.click(link)
+			expect(mockedPostMessage).not.toHaveBeenCalled()
+		})
 	})
 })

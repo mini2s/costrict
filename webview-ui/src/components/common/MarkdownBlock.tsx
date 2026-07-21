@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
-import rehypeSanitize from "rehype-sanitize"
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import rehypeKatex from "rehype-katex"
@@ -206,6 +206,47 @@ const StyledMarkdown = styled.div`
 `
 
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
+	// Allow local-file and VS Code command links in addition to the default
+	// web protocols. ReactMarkdown's defaultUrlTransform and rehype-sanitize
+	// both filter URL protocols, so we need to extend both. The click handler
+	// in `components.a` is what actually routes these hrefs safely.
+	const allowedProtocols = useMemo(() => /^(https?|ircs?|mailto|xmpp|file|command|vscode|vscode-resource)$/i, [])
+
+	const sanitizeSchema = useMemo(() => {
+		const protocols = defaultSchema?.protocols?.href ?? []
+		const extendedProtocols = Array.from(new Set([...protocols, "file", "command", "vscode", "vscode-resource"]))
+		return {
+			...defaultSchema,
+			protocols: {
+				...defaultSchema?.protocols,
+				href: extendedProtocols,
+			},
+		}
+	}, [])
+
+	// Custom urlTransform: keep relative URLs and any URL whose protocol is in
+	// the allow list; drop everything else (e.g. javascript:, data:).
+	const urlTransform = useMemo(
+		() => (url: string) => {
+			const colon = url.indexOf(":")
+			const questionMark = url.indexOf("?")
+			const numberSign = url.indexOf("#")
+			const slash = url.indexOf("/")
+
+			if (
+				colon === -1 ||
+				(slash !== -1 && colon > slash) ||
+				(questionMark !== -1 && colon > questionMark) ||
+				(numberSign !== -1 && colon > numberSign) ||
+				allowedProtocols.test(url.slice(0, colon))
+			) {
+				return url
+			}
+			return ""
+		},
+		[allowedProtocols],
+	)
+
 	const components = useMemo(
 		() => ({
 			table: ({ children, ...props }: any) => {
@@ -217,19 +258,49 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 			a: ({ href, children, ...props }: any) => {
 				const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-					// Only process file:// protocol or local file paths
-					const isLocalPath = href?.startsWith("file://") || href?.startsWith("/") || !href?.includes("://")
-
-					if (!isLocalPath) {
+					if (!href) {
 						return
 					}
 
+					// Allow modifier-click (cmd/ctrl/middle-click) to fall through to the
+					// browser/webview default so users can still "open in new tab" if supported.
+					const wantsDefault = e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1
+					if (wantsDefault) {
+						return
+					}
+
+					// ALWAYS swallow the native navigation. Without this, the webview's <base href>
+					// (the asWebviewUri cdn URL) gets prepended to any href, producing
+					// https://file+.vscode-resource.vscode-cdn.net/.../<href> and the system browser
+					// ends up handling it.
 					e.preventDefault()
+					e.stopPropagation()
 
-					// Handle absolute vs project-relative paths
-					let filePath = href.replace("file://", "")
+					// Classify the href and dispatch to the right host handler.
+					// 1) In-page anchor: let the browser do its default scroll.
+					if (href.startsWith("#")) {
+						return
+					}
 
-					// Extract line number if present
+					// 2) External resources (http/https/mailto/etc): open via the host so we never
+					//    hit the <base href> pollution and the system browser is used explicitly.
+					if (/^(https?|mailto|tel|ftp|vscode|vscode-resource):/i.test(href)) {
+						vscode.postMessage({ type: "openExternal", url: href })
+						return
+					}
+
+					// 3) VS Code command links: dispatch via the host's executeCommand, since
+					//    vscode.env.openExternal does not reliably handle the command: scheme.
+					if (href.startsWith("command:")) {
+						vscode.postMessage({ type: "executeCommand", command: href.slice("command:".length) })
+						return
+					}
+
+					// 4) Everything else is treated as a local file path (file://, absolute, or relative).
+					//    Normalize to something the host's openFile() understands.
+					let filePath = href.replace(/^file:\/\//, "")
+
+					// Extract line number if present (e.g. path/to/file.ts:123 or file:///x.ts:123-145)
 					const match = filePath.match(/(.*):(\d+)(-\d+)?$/)
 					let values = undefined
 					if (match) {
@@ -237,7 +308,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						values = { line: parseInt(match[2]) }
 					}
 
-					// Add ./ prefix if needed
+					// Add ./ prefix if it's a bare relative path (no leading / or ./).
 					if (!filePath.startsWith("/") && !filePath.startsWith("./")) {
 						filePath = "./" + filePath
 					}
@@ -324,7 +395,8 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 							}
 						},
 					]}
-					rehypePlugins={[rehypeRaw, rehypeKatex as any, rehypeSanitize]}
+					rehypePlugins={[rehypeRaw, rehypeKatex as any, [rehypeSanitize, sanitizeSchema]]}
+					urlTransform={urlTransform}
 					components={components}>
 					{markdown || ""}
 				</ReactMarkdown>
