@@ -615,6 +615,7 @@ export interface WebviewMessage {
 		| "browseForCustomStoragePath"
 		| "focusPanelRequest"
 		| "openExternal"
+		| "executeCommand"
 		| "filterMarketplaceItems"
 		| "marketplaceButtonClicked"
 		| "installMarketplaceItem"
@@ -750,6 +751,7 @@ export interface WebviewMessage {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	settings?: any
 	url?: string // For openExternal
+	command?: string // For executeCommand (command: markdown links)
 	mpItem?: MarketplaceItem
 	mpInstallOptions?: InstallMarketplaceItemOptions
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
