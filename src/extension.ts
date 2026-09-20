@@ -293,6 +293,33 @@ export async function activate(context: vscode.ExtensionContext) {
 			}),
 		)
 
+		// 注册「立即上报日志」命令：主动触发本地落盘日志的上报，并回显统计。
+		// 与定时上报（默认 5s tick）互补，便于用户自助确认「到底上报成功没有」。
+		context.subscriptions.push(
+			vscode.commands.registerCommand(`${Package.commandIDPrefix}.flushLogs`, async () => {
+				try {
+					const stats = await assistantProvider.flushLogs()
+					const pending = stats.cached + stats.queued
+					// 带上完整失败信息（HTTP 状态 + code + 服务端 message + request_id），
+					// 只有一个 code 时无法定位问题（契约 §3.6）
+					const reason = stats.lastErrorDetail ?? stats.lastError
+					const summary = `日志上报：已确认 ${stats.confirmed} 条｜待上报 ${pending} 条｜失败 ${stats.failed} 次${reason ? `｜最后错误 ${reason}` : ""}`
+					outputChannel.appendLine(`[cs-log] ${summary}`)
+					if (pending > 0) {
+						void vscode.window.showWarningMessage(
+							`${summary}。仍未送出的日志已保留在本地，网络恢复后会自动重试。`,
+						)
+					} else {
+						void vscode.window.showInformationMessage(summary)
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err)
+					outputChannel.appendLine(`[cs-log] 主动上报失败: ${msg}`)
+					void vscode.window.showErrorMessage(`日志上报失败: ${msg}`)
+				}
+			}),
+		)
+
 		// Pre-start cs-cloud daemon when in cloud mode so it's ready by the
 		// time the user opens the sidebar.
 		void csCloudService.ensureStarted().catch(async (err) => {

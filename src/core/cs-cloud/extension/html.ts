@@ -819,6 +819,10 @@ export function getAssistantUIStaticHtml(
                 v.postMessage({ type: "fetchQuota", baseUrl: data.baseUrl, token: data.token });
                 return;
               }
+              if (data && data.type === "csLog") {
+                v.postMessage(data);
+                return;
+              }
               return originalPostMessage(data, targetOrigin, transfer);
             };
           }
@@ -1174,6 +1178,10 @@ export function getAssistantUIIframeHtml(
         }
         if (event.data?.type === "FETCH_QUOTA") {
           vscodeApi.postMessage({ type: "fetchQuota", baseUrl: event.data.baseUrl, token: event.data.token });
+          return;
+        }
+        if (event.data?.type === "csLog") {
+          vscodeApi.postMessage(event.data);
           return;
         }
         if (event.data?.type === "openExternal" && event.data.url) {

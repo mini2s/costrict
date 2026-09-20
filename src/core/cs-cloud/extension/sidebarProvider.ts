@@ -18,6 +18,11 @@ import type { AssistantUIContextMessage } from "./types"
 import { setActiveCloudProvider, onCloudUiReady, setCloudUnavailable } from "./contextBridge"
 import { Package } from "../../../shared/package"
 import { readCostrictAccessToken } from "../../costrict/runtime-config"
+import { getClientId } from "../../../utils/getClientId"
+import { isJetbrainsPlatform } from "../../../utils/platform"
+import { CsCloudLogService } from "./log/csCloudLogService"
+import { createFileTransport } from "./log/logMockTransport"
+import type { LogServiceStats } from "./log/types"
 import { t } from "../../../i18n"
 
 export function getAssistantUIWorkspaceDirectory() {
@@ -104,6 +109,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 	/** Cached HTML for fast restore after sidebar move. */
 	private cachedHtml: string | undefined
 	private readonly proxyFetchControllers = new Map<string, AbortController>()
+	private readonly logService: CsCloudLogService
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -111,6 +117,40 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		csCloudService: CsCloudService,
 	) {
 		this.csCloudService = csCloudService
+		const uiConfig = getAssistantUIConfig()
+		const logCacheDir = uiConfig.logCacheDir.trim() || path.join(context.globalStorageUri.fsPath, "logs")
+		this.logService = new CsCloudLogService({
+			baseUrl: uiConfig.logBaseUrl.trim() || CostrictAuthConfig.getInstance().getDefaultApiBaseUrl(),
+			getAccessToken: async () => {
+				try {
+					const token = await CostrictAuthService.getInstance().getCurrentAccessToken()
+					if (token) {
+						return token
+					}
+				} catch {
+					// fall through to the on-disk token
+				}
+				try {
+					return readCostrictAccessToken()?.access_token ?? null
+				} catch {
+					return null
+				}
+			},
+			deviceId: getClientId(),
+			clientType: isJetbrainsPlatform() ? "jetbrains-plugin" : "vscode-plugin",
+			clientVersion: Package.version,
+			storageDir: logCacheDir,
+			fsync: uiConfig.logFsync,
+			offlineMaxAgeHours: uiConfig.logRetentionHours,
+			transport:
+				uiConfig.logTransport === "mock" ? createFileTransport(path.join(logCacheDir, "outbox")) : undefined,
+			getWorkspaceDirectory: () => getAssistantUIWorkspaceDirectory(),
+			onConfigChange: (config) => {
+				void this.view?.webview.postMessage({ type: "csLogConfig", enabled: config.enabled })
+			},
+			outputChannel,
+		})
+		this.logService.start()
 	}
 
 	/** Post message to Cloud UI webview. */
@@ -199,12 +239,17 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 				command?: string
 				requestId?: string
 				input?: string
+				record?: unknown
 				init?: {
 					method?: string
 					headers?: Record<string, string>
 					body?: string
 				}
 			}) => {
+				if (message.type === "csLog") {
+					this.logService.ingest(message.record)
+					return
+				}
 				if (message.type === "ASSISTANT_UI_READY") {
 					onCloudUiReady(cloudGen)
 					return
@@ -377,6 +422,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 					} catch (err) {
 						if (!abortController.signal.aborted) {
 							const reason = err instanceof Error ? err.message : String(err)
+							this.logService.log("error", `proxy fetch failed: ${reason}`, { operation: "proxy_fetch" })
 							await webviewView.webview.postMessage({
 								type: "proxyFetchError",
 								requestId: message.requestId,
@@ -622,6 +668,7 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error)
 			this.outputChannel.appendLine(`[AssistantUI] ${message}`)
+			this.logService.log("error", `assistant ui failed to load: ${message}`, { operation: "load_cloud_ui" })
 			webviewView.webview.html = this.getErrorHtml(message)
 		}
 	}
@@ -968,11 +1015,22 @@ export class AssistantUISidebarProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	/** 主动上报入口：立即把内存缓冲与本地落盘分片尽量送出，返回最新统计。 */
+	async flushLogs(timeoutMs = 20_000): Promise<LogServiceStats> {
+		return this.logService.flushNow(timeoutMs)
+	}
+
+	/** 读取当前日志上报统计（不触发发送），供状态展示使用。 */
+	async getLogStats(): Promise<LogServiceStats> {
+		return this.logService.getStats()
+	}
+
 	dispose() {
 		for (const controller of this.proxyFetchControllers.values()) {
 			controller.abort()
 		}
 		this.proxyFetchControllers.clear()
+		void this.logService.shutdown()
 		while (this.disposables.length) {
 			this.disposables.pop()?.dispose()
 		}

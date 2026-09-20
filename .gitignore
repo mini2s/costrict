@@ -58,6 +58,9 @@ openspec
 # Architect plans
 plans/
 
+# Local mock / debug artifacts
+/tmp/
+
 # Review results
 code-review_result/
 security-review_result/

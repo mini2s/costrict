@@ -143,6 +143,11 @@
 				"category": "%configuration.title%"
 			},
 			{
+				"command": "costrict.flushLogs",
+				"title": "CoStrict: Flush Log Reports Now",
+				"category": "%configuration.title%"
+			},
+			{
 				"command": "costrict.settingsButtonClicked",
 				"title": "%command.settings.title%",
 				"icon": "$(settings-gear)"
@@ -800,6 +805,37 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Show Assistant UI diagnostics and pass assistantUIDebug=1 to the iframe fallback. Keep disabled for normal isolated static mode."
+				},
+				"costrict.assistantUI.logBaseUrl": {
+					"type": "string",
+					"default": "",
+					"description": "Base URL used to discover the client log reporting endpoint. Empty uses the configured costrict API base URL. Point this at the local mock server (e.g. http://127.0.0.1:8788) during development."
+				},
+				"costrict.assistantUI.logCacheDir": {
+					"type": "string",
+					"default": "",
+					"description": "Local directory for buffered client logs. Empty uses <globalStorage>/logs."
+				},
+				"costrict.assistantUI.logFsync": {
+					"type": "boolean",
+					"default": false,
+					"description": "fsync every log append. Off still survives extension/VS Code crashes (data is written before buffering); turn on to also survive machine power loss, at the cost of one fsync per log record."
+				},
+				"costrict.assistantUI.logTransport": {
+					"type": "string",
+					"enum": [
+						"http",
+						"mock"
+					],
+					"default": "http",
+					"description": "Client log transport. http sends real requests to the discovered endpoint; mock writes the exact request body to <logCacheDir>/outbox without any network call. Use mock while the backend is still under development."
+				},
+				"costrict.assistantUI.logRetentionHours": {
+					"type": "number",
+					"default": 72,
+					"minimum": 1,
+					"maximum": 72,
+					"description": "How long (hours) locally buffered client logs are kept before being dropped. The log API accepts events up to 3 days old, so 72 keeps the whole replay window open; lower it to cap disk usage. Dropped shards are reported in the CoStrict output channel."
 				},
 				"costrict.enableCodeActions": {
 					"type": "boolean",

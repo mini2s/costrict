@@ -256,6 +256,42 @@ describe("AssistantUIPanel", () => {
 		expect(html).toContain('event.data?.type === "restartCsCloudServerFailed"')
 	})
 
+	it("forwards client log messages from the Webview to the extension host", () => {
+		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cs-cloud-ui-log-bridge-"))
+		try {
+			const outDir = path.join(extensionRoot, "assets", "cs-cloud-ui", "out")
+			fs.mkdirSync(outDir, { recursive: true })
+			fs.writeFileSync(path.join(outDir, "index.html"), "<!DOCTYPE html><html><head></head><body></body></html>")
+
+			const staticHtml = getAssistantUIStaticHtml(
+				{
+					cspSource: "vscode-webview://test-csp-source",
+					asWebviewUri: (uri: { fsPath: string }) => ({
+						toString: () => `vscode-resource:${uri.fsPath}`,
+					}),
+				} as never,
+				{ extensionUri: { fsPath: extensionRoot } } as never,
+				"http://127.0.0.1:45489/api/v1",
+				"/workspace",
+			)
+
+			expect(staticHtml).toContain('data.type === "csLog"')
+			expect(staticHtml).toContain("v.postMessage(data)")
+		} finally {
+			fs.rmSync(extensionRoot, { recursive: true, force: true })
+		}
+
+		const iframeHtml = getAssistantUIIframeHtml(
+			{ cspSource: "vscode-webview://test-csp-source" } as never,
+			{ extensionUri: { fsPath: "/tmp/test-extension" } } as never,
+			"http://127.0.0.1:45489/api/v1",
+			"http://127.0.0.1:3000",
+		)
+
+		expect(iframeHtml).toContain('event.data?.type === "csLog"')
+		expect(iframeHtml).toContain("vscodeApi.postMessage(event.data)")
+	})
+
 	it("preserves Request method, headers, and body in the static Webview fetch proxy", () => {
 		const extensionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cs-cloud-ui-fetch-proxy-"))
 		try {
